@@ -1,0 +1,9 @@
+# Normalise line endings in the repository to LF, whichever platform or tool touched the file,
+# so a diff shows the change and nothing else.
+* text=auto eol=lf
+
+# Binary: never touch these.
+*.parquet binary
+*.duckdb  binary
+*.gz      binary
+*.png     binary

@@ -1,0 +1,35 @@
+# --- programme policy: never published ---
+CLAUDE.md
+.env
+.env.*
+
+# --- raw data: never committed, always re-downloadable from the source in DATA.md ---
+data/raw/*
+!data/raw/.gitkeep
+
+# --- derived data stores ---
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- notebooks ---
+.ipynb_checkpoints/
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store
+*:Zone.Identifier
