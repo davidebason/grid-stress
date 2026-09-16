@@ -21,7 +21,7 @@ RETRIABLE_EXCEPTIONS = [
 ERROR_DOC = "See the API errors section of DATA.md."
 
 
-def error_date(date_begin, date_end):
+def error_date(date_begin: str, date_end: str) -> str:
     """Check the two dates and return "No errors!" if they are usable, otherwise a message."""
 
     try:
@@ -41,7 +41,12 @@ def error_date(date_begin, date_end):
     return "No errors!"
 
 
-def error_or_not_api(window_start, window_end, params, timeout):
+def error_or_not_api(
+    window_start: datetime,
+    window_end: datetime,
+    params: dict[str, str | None],
+    timeout: float,
+) -> requests.Response | int:
     """Fetch one window, retrying the failures that a later attempt may survive.
 
     Up to N_ATTEMPTS requests are sent for the same window. A failure that a retry cannot cure,
@@ -112,7 +117,7 @@ def error_or_not_api(window_start, window_end, params, timeout):
     return r
 
 
-def retry_or_stop(window, i, failure):
+def retry_or_stop(window: str, i: int, failure: str) -> None:
     """Report a retriable failure, and wait before the next attempt unless this was the last."""
     if i < N_ATTEMPTS - 1:
         wait = 2**i + 1
