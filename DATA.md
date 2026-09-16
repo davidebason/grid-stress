@@ -36,7 +36,7 @@ The API takes the token as the `securityToken` query parameter, so it is part of
 
 What one request can come back as, and what the client does about it. For every outcome other than success the client prints the window, the attempt number and the failure.
 
-**Acceptable.** A `200` carrying a `GL_MarketDocument` (load, generation) or a `Publication_MarketDocument` (prices). A window with no published data arrives instead as an `Acknowledgement_MarketDocument` containing `No matching data found`, under either a `200` or a `400`, and asking again returns the same answer.
+**Acceptable.** A `200` carrying a `GL_MarketDocument` (load, generation) or a `Publication_MarketDocument` (prices). A window with no published data arrives instead as an `Acknowledgement_MarketDocument` containing `No matching data found`, and asking again returns the same answer. A window a year in the future, queried on 2026-09-16, came back under a `200`; the same document is also reported under a `400`, so the status code alone does not identify it.
 
 **Retried**, because a later attempt may succeed. The wait doubles between attempts, and none follows the last attempt.
 
