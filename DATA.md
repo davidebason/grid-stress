@@ -63,6 +63,26 @@ The Netherlands is `10YNL----------L`. The window of one request is kept to 300 
 
 So a load or generation value is a power in megawatts, and a price is euros per megawatt hour of energy. The unit belongs to the document a value came from: a document reporting a different unit code would say so in these same elements.
 
+#### What load, generation and consumption are
+
+All three datasets are published under [Commission Regulation (EU) No 543/2013](https://www.legislation.gov.uk/eur/2013/543/contents/adopted), the Transparency Regulation, whose adopted text is the source for the definitions below.
+
+**Load** (`A65`) is how much electricity is used in the bidding zone, per market time unit. Article 6(1)(a) requires publication of "the total load per market time unit", and [Article 2(27)](https://www.legislation.gov.uk/eur/2013/543/article/2/adopted) defines total load as "including losses without power used for energy storage", equal to "generation and any imports deducting any exports and power used for energy storage". Load says nothing about how the electricity was produced.
+
+**Generation** (`A75`, series carrying `inBiddingZone_Domain`) is how much electricity the zone's power plants produce, split by production type. [Article 16(1)(b)](https://www.legislation.gov.uk/eur/2013/543/article/16/adopted) requires publication of "aggregated generation output per market time unit and per production type". The regulation does not define production type; the types are the ENTSO-E codes tabled under What a generation response contains below.
+
+**Consumption per production type** (`A75`, series carrying `outBiddingZone_Domain`) is electricity used rather than produced, reported against a production type. It is not mentioned in the regulation: Article 16 says nothing about consumption or storage. The only description read for this project is the API parameter note that such series "reflect Consumption values", see the directions below. What it includes, for example a plant's own running needs or a storage plant charging, is not stated in any source read, and the series is used here only as what that note says it is.
+
+**Why load and generation differ.** Article 2(27) makes load a balance, per market time unit:
+
+```
+total load = generation + imports − exports − power used for energy storage      (grid losses included)
+```
+
+Load equals generation only when imports equal exports plus power put into storage. When generation is above load, the difference is leaving the zone or going into storage; when load is above generation, the difference is coming in from neighbouring zones. None of the three datasets used here records imports, exports or storage, so they cannot say which. The regulation also does not state whether the generation in this definition covers exactly the same plants as the generation published per production type under Article 16(1)(b).
+
+**Why both are needed.** Load gives how much the zone used; generation gives what it was produced from. Any share of solar or wind can only come from generation, since load carries no production type.
+
 #### What a generation response contains
 
 Observed in `tests/fixtures/generation_nl_20260914.xml`, one Netherlands day, `2026-09-13T22:00Z` to `2026-09-14T22:00Z`, fetched on 2026-09-17.
