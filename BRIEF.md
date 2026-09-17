@@ -75,6 +75,6 @@ One branch and one pull request per deliverable.
 - **No forecasting model.**
 - **No dbt, no orchestrator, no cloud, no Docker.**
 - **Netherlands only**, with Belgium and Germany used solely for cross-border context if question 2 needs it.
-- **Two years of data at most.** More does not change the answer and does change the fetch time.
+- **Data from 2021 to the present, for all three datasets:** actual total load, actual generation for every production type, and day-ahead prices. 2021 is when TenneT declared structural congestion in parts of the Dutch high-voltage grid, and negative prices became frequent in the years that followed, so the range covers the period in which the problem took its current form.
 - **If API access fails or is throttled beyond use**, fall back to CBS StatLine OData paired with one other source, within the first two hours.
 - **Cut a question rather than doing all four at half depth.** Question 4 must survive; question 3 is the next most valuable.
