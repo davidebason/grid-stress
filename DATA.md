@@ -32,6 +32,99 @@ If the variable is not set, every fetch stops before sending any request, with `
 
 The API takes the token as the `securityToken` query parameter, so it is part of every request URL. Do not share logs, tracebacks or screenshots that show a full request URL.
 
+#### Requests
+
+Every request is an HTTPS `GET` to the base URL with query parameters. The parameters say which dataset is wanted, for which zone and over which window; the security token is always one of them.
+
+| Parameter | Meaning | Values used here |
+|---|---|---|
+| `securityToken` | the personal token, see Access above | from `ENTSOE_TOKEN` |
+| `documentType` | **which dataset**, and therefore which kind of document comes back | `A65`, `A75`, `A44` |
+| `processType` | **which version of that dataset**: realised values, or one of the forecasts | `A16` for load and generation; not sent for prices |
+| zone parameter(s) | which bidding zone; the parameter's name depends on the dataset | see below |
+| `periodStart`, `periodEnd` | the window, `YYYYMMDDHHmm`, in UTC | chosen per call |
+
+The three datasets this project uses:
+
+| Dataset | `documentType` | `processType` | Zone parameter(s) | Document returned | Value in each point | Unit |
+|---|---|---|---|---|---|---|
+| Actual total load | `A65`, system total load | `A16`, realised | `outBiddingZone_Domain` | `GL_MarketDocument` | `quantity` | `MAW`, megawatts |
+| Actual generation per production type | `A75`, actual generation per type | `A16`, realised | `in_Domain` | `GL_MarketDocument`, two `TimeSeries` per production type, one per direction, see below | `quantity` | `MAW`, megawatts |
+| Day-ahead prices | `A44`, price document | none | `in_Domain` and `out_Domain`, both the same zone | `Publication_MarketDocument` | `price.amount` | `EUR` per `MWH` |
+
+The Netherlands is `10YNL----------L`. The window of one request is kept to 300 days by the client, below the API's limit of about one year.
+
+**The document type decides the document family.** `A65` and `A75` are physical measurements and come back as `GL_MarketDocument` (generation and load), carrying power in megawatts. `A44` is a market result and comes back as `Publication_MarketDocument`, carrying prices. Neither family carries the other's quantity: a price document holds no energy or power, and `MWH` in it is the unit of the price, euros per megawatt hour. When a request cannot be answered with data, whatever its document type, an `Acknowledgement_MarketDocument` comes back instead, see API errors below.
+
+**How the value and its unit are known.** Two independent sources, which agree.
+
+1. **Each document states its own unit.** Every `TimeSeries` carries a unit element next to its data: `quantity_Measure_Unit.name` in load and generation documents, `currency_Unit.name` and `price_Measure_Unit.name` in price documents. In every fixture under `tests/fixtures/`, fetched on 2026-09-16 and 2026-09-17, these read `MAW` for load and generation, and `EUR` with `MWH` for prices. Which element inside a `Point` carries the number, `quantity` or `price.amount`, was read from the same fixtures: load and generation points hold `position` and `quantity`, price points hold `position` and `price.amount`, and nothing else.
+2. **ENTSO-E defines the codes.** The [ENTSO-E General Code Lists for Data Interchange](https://eepublicdownloads.entsoe.eu/clean-documents/EDI/Library/Core/entso-e-code-list-v36r0.pdf), version 36, release 0, 2015-06-09, list 28 `StandardUnitOfMeasureTypeList`, defines `MAW` as "Mega watt", a unit of bulk power flow, and `MWH` as "Mega watt hours", the total amount of bulk energy transferred or consumed. `EUR` is the ISO 4217 code for the euro.
+
+So a load or generation value is a power in megawatts, and a price is euros per megawatt hour of energy. The unit belongs to the document a value came from: a document reporting a different unit code would say so in these same elements.
+
+#### What a generation response contains
+
+Observed in `tests/fixtures/generation_nl_20260914.xml`, one Netherlands day, `2026-09-13T22:00Z` to `2026-09-14T22:00Z`, fetched on 2026-09-17.
+
+The document holds 20 `TimeSeries`, each with one `Period` covering the whole day. All 20 have `curveType` `A03`, `resolution` `PT15M`, unit `MAW`, `businessType` `A01` and `objectAggregation` `A08`. The production type sits in `MktPSRType/psrType` inside each series. The children of a series come in this order: `mRID`, `businessType`, `objectAggregation`, the domain element, `quantity_Measure_Unit.name`, `curveType`, `MktPSRType`, `Period`.
+
+**On this day, each production type appears twice, once per direction.** Ten series carry `inBiddingZone_Domain.mRID` and ten carry `outBiddingZone_Domain.mRID`, with the same ten `psrType` codes in each group, and no series carries both. In this response, therefore, each of the ten types present has one `in` series and one `out` series. Consumption series exist for every type in the response, not only for storage; no storage type (`B10`, `B25`) appears on this day.
+
+**How the meaning of the two directions is known.** Two sources.
+
+1. **The documents.** Which element a series carries, and so which direction it is, is read from the fixture above; the element names are the only marker of direction, since both hold the same zone code, `10YNL----------L`.
+2. **The API documentation for this dataset.** The parameter notes for actual generation per production type state that a time series with the `inBiddingZone_Domain` attribute reflects generation values, and one with the `outBiddingZone_Domain` attribute reflects consumption values. ENTSO-E publishes its RESTful API documentation as a [Postman collection](https://documenter.getpostman.com/view/7009892/2s93JtP3F6); the wording cited here is as reproduced in the [entsoe-apy documentation for `ActualGenerationPerProductionType`](https://entsoe-apy.berrisch.biz/ENTSOE/generation/), read on 2026-09-17.
+
+The magnitudes are consistent with that reading: fossil gas, nuclear and hard coal run in the thousands of megawatts in `in` and at or near zero in `out`. The two directions differ by orders of magnitude:
+
+| `psrType` | `in`, min to max (MW) | `out`, min to max (MW) |
+|---|---|---|
+| `B01` biomass | 0 to 0 | 2.819 to 6.745 |
+| `B04` fossil gas | 2,847.206 to 8,074.588 | 41.736 to 146.154 |
+| `B05` hard coal | 3,224.973 to 3,317.350 | 0 to 0 |
+| `B11` hydro run-of-river | 0 to 0 | 0 to 0 |
+| `B14` nuclear | 468.523 to 471.472 | 0 to 0 |
+| `B16` solar | 0 to 224.436 | 0 to 0.518 |
+| `B17` waste | 64.951 to 74.125 | 0 to 0 |
+| `B18` wind offshore | 1.546 to 1,532.909 | 0.676 to 35.732 |
+| `B19` wind onshore | 0.290 to 185.846 | 0 to 7.703 |
+| `B20` other | 33.858 to 550.517 | 237.101 to 265.584 |
+
+A series added up without looking at its direction counts consumption as generation.
+
+**The `A03` block encoding is used in practice.** The day has 1,185 points where 20 series of 96 quarter hours would need 1,920. Under `A03` a listed value holds until the next listed position, or until the end of the period, so omitted positions repeat the last value. Three shapes occur:
+
+| Shape | Example | Listed positions |
+|---|---|---|
+| One value for the whole day | `B14` `out`, and five other series | position 1 only, value `0.0` |
+| Gaps in the middle | `B16` `in` | `1`, then `29`, `30`, and so on; positions 2 to 28 omitted |
+| Listing stops before the end | `B19` `out` | last listed position `68`, value `0.0`; positions 69 to 96 omitted |
+
+A parser that treats each listed point as one quarter hour, or numbers points by their order in the file rather than by `position`, places values at the wrong times from the first omission onward.
+
+**What the parser does not assume.** Two regularities hold in this response, and neither is stated in any ENTSO-E documentation read for this project: the Manual of Procedures v2.1, the General Code Lists v36r0, and the API parameter notes for this dataset. The parser therefore treats every series on its own terms.
+
+- **That a production type has both a generation and a consumption series.** A type may appear in one direction only, in either, or in both, and the two directions are read and returned separately.
+- **That all series share the same start, end and resolution.** Each `Period` states its own `timeInterval` and `resolution`, and each series' times are built from its own.
+
+**Production type codes.** The `psrType` codes are defined in the same [ENTSO-E General Code Lists](https://eepublicdownloads.entsoe.eu/clean-documents/EDI/Library/Core/entso-e-code-list-v36r0.pdf), version 36, release 0, list 2 `StandardAssetTypeList`, pages 7 and 8. Codes `B01` to `B20` are production types, named there as follows:
+
+| Code | Name in the code list | Code | Name in the code list |
+|---|---|---|---|
+| `B01` | Biomass | `B11` | Hydro Run-of-river and poundage |
+| `B02` | Fossil Brown coal/Lignite | `B12` | Hydro Water Reservoir |
+| `B03` | Fossil Coal-derived gas | `B13` | Marine |
+| `B04` | Fossil Gas | `B14` | Nuclear |
+| `B05` | Fossil Hard coal | `B15` | Other renewable |
+| `B06` | Fossil Oil | `B16` | Solar |
+| `B07` | Fossil Oil shale | `B17` | Waste |
+| `B08` | Fossil Peat | `B18` | Wind Offshore |
+| `B09` | Geothermal | `B19` | Wind Onshore |
+| `B10` | Hydro Pumped Storage | `B20` | Other |
+
+Codes `B21` to `B24` in the same list are grid assets (AC link, DC link, substation, transformer), not production types. No code beyond `B24` appears in version 36. The parser keeps the codes as they arrive and does not translate them to these names; see Decisions below.
+
 #### API errors
 
 What one request can come back as, and what the client does about it. For every outcome other than success the client prints the window, the attempt number and the failure.
@@ -67,3 +160,21 @@ What one request can come back as, and what the client does about it. For every 
 **Before any request is sent.** A missing `ENTSOE_TOKEN` raises `KeyError`. A date that is not twelve digits in `YYYYMMDDHHmm`, a range whose two dates coincide, or an end before its start, is reported as a message and nothing is sent.
 
 **Never printed.** The token travels as the `securityToken` query parameter, so it is part of every request URL. The client prints only the class name of an exception, never `str(err)`, `repr(err)`, `err.request.url` or `response.url`, each of which contains the token.
+
+## Decisions
+
+### Timestamps stay in UTC until the time dimension
+
+**Decision.** Every timestamp is kept in UTC from the request through parsing. Local Amsterdam time is derived once, in the time dimension, and nowhere earlier.
+
+**Reasoning.** The API speaks UTC in both directions: `periodStart` and `periodEnd` are sent in UTC, and every timestamp in every document ends in `Z`. A UTC day always has 96 quarter hours, so the parser needs no knowledge of clock changes. An Amsterdam calendar day does not: the day the clocks go forward is 23 hours, 92 quarter hours, and the day they go back is 25 hours, 100 quarter hours, as the fixtures for 2026-03-29 and 2025-10-26 show. Converting in one place means the irregular days are handled once rather than in every query.
+
+**Risk accepted.** Until the time dimension exists, nothing in the parsed data can be grouped by local hour, weekday or date. Doing so on the UTC timestamps would put a local 18:00 at 17:00 in winter and 16:00 in summer.
+
+### Production types stay as ENTSO-E codes in the parser
+
+**Decision.** The parser labels each generation and consumption series with its `psrType` code exactly as it appears in the document, such as `B18`, and does not translate codes into names such as Wind Offshore. The code-to-name table is kept in this file, under What a generation response contains.
+
+**Reasoning.** The only list of names read for this project is version 36 of the ENTSO-E code lists, dated 2015-06-09, and whether later versions add production types was not checked. A mapping inside the parser would have to be complete for every code the API may ever send: a code missing from it either stops the parse or produces a series with no name, and either failure depends on a document that has not arrived yet. Keeping the code costs nothing in information, since the code is the identifier ENTSO-E itself uses, and it cannot go out of date. Names are a matter of presentation, and belong where the data is presented.
+
+**Risk accepted.** Parsed output is less readable: a series reads `B18`, not wind offshore, until the codes are joined to names. That join, in the production type dimension or in the report, has to be kept in step with the code list, and a code it does not know will show up there without a name rather than stopping the parse.
