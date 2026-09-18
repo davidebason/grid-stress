@@ -138,22 +138,34 @@ def gl75_reader(root, ns):
 
 def pm_reader(root, ns):
 
-    series = root.find("d:TimeSeries", ns)
-    period = series.find("d:Period", ns)
+    series = root.findall("d:TimeSeries", ns)
+    period = [x.find("d:Period", ns) for x in series]
 
-    curve_type = series.find("d:curveType", ns).text
+    curve_type = [x.find("d:curveType", ns).text for x in series]
 
-    date_start = period.find("d:timeInterval/d:start", ns).text
-    date_end = period.find("d:timeInterval/d:end", ns).text
-    resolution = period.find("d:resolution", ns).text
+    date_start = [x.find("d:timeInterval/d:start", ns).text for x in period]
+    date_end = [x.find("d:timeInterval/d:end", ns).text for x in period]
+    resolution = [x.find("d:resolution", ns).text for x in period]
 
-    position = [int(x.text) for x in period.findall("d:Point/d:position", ns)]
-    value = [float(x.text) for x in period.findall("d:Point/d:price.amount", ns)]
-    position, value = fill_time_measure(
-        position, value, curve_type, date_start, date_end, resolution
+    position = [[int(y.text) for y in x.findall("d:Point/d:position", ns)] for x in period]
+    value = [[float(y.text) for y in x.findall("d:Point/d:price.amount", ns)] for x in period]
+    filled = [
+        fill_time_measure(
+            position[i], value[i], curve_type[i], date_start[i], date_end[i], resolution[i]
+        )
+        for i in range(len(period))
+    ]
+    position = [f[0] for f in filled]
+    value = [f[1] for f in filled]
+    time = [utc_times(position[i], date_start[i], resolution[i]) for i in range(len(period))]
+
+    df = pd.DataFrame(
+        {
+            "date_utc": [t for ti in time for t in ti],
+            "price_eur_per_mwh": [v for vi in value for v in vi],
+        }
     )
-    times = utc_times(position, date_start, resolution)
 
-    df = pd.DataFrame({"date_utc": times, "price_eur_per_mwh": value})
-
-    return df
+    # One series per local day, so the order of the frame is the order of the series in the
+    # document. Sorting makes it independent of that.
+    return df.sort_values("date_utc", ignore_index=True)
