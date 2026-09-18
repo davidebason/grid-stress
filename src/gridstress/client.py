@@ -2,13 +2,15 @@
 
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 
 BASE_URL = "https://web-api.tp.entsoe.eu/api"
 DATE_FORMAT = "%Y%m%d%H%M"
 WINDOW_DAYS = 300  # the API refuses windows longer than about one year
+MARKET_ZONE = ZoneInfo("Europe/Amsterdam")  # the clock the Dutch market day follows
 N_ATTEMPTS = 6
 RETRIABLE_EXCEPTIONS = [
     "ConnectTimeout",
@@ -117,6 +119,48 @@ def error_or_not_api(
     return r
 
 
+def window_edges(date_begin: str, date_end: str, window_days: int = WINDOW_DAYS) -> list[str]:
+    """Split a range into window boundaries that keep the local clock time of date_begin.
+
+    The boundaries are stepped in Amsterdam calendar days rather than in fixed 24-hour blocks, so
+    a clock change inside the range does not move them: a range that starts at a local midnight
+    has every later boundary at a local midnight too. That matters because the API answers a price
+    request with whole local days, widening the window at both ends when a boundary falls inside a
+    day, which would otherwise return the same day in two consecutive windows.
+
+    Args:
+        date_begin: start of the range, "YYYYMMDDHHmm" in UTC.
+        date_end: end of the range, "YYYYMMDDHHmm" in UTC.
+        window_days: length of one window, in local days.
+
+    Returns:
+        The boundaries as "YYYYMMDDHHmm" strings in UTC, starting with date_begin and ending with
+        date_end, so that n windows are described by n + 1 boundaries.
+    """
+    begin_local = (
+        datetime.strptime(date_begin, DATE_FORMAT)
+        .replace(tzinfo=UTC)
+        .astimezone(MARKET_ZONE)
+        .replace(tzinfo=None)
+    )
+    end_local = (
+        datetime.strptime(date_end, DATE_FORMAT)
+        .replace(tzinfo=UTC)
+        .astimezone(MARKET_ZONE)
+        .replace(tzinfo=None)
+    )
+
+    edges_local = [begin_local]
+    while edges_local[-1] + timedelta(days=window_days) < end_local:
+        edges_local.append(edges_local[-1] + timedelta(days=window_days))
+    edges_local.append(end_local)
+
+    return [
+        edge.replace(tzinfo=MARKET_ZONE).astimezone(UTC).strftime(DATE_FORMAT)
+        for edge in edges_local
+    ]
+
+
 def retry_or_stop(window: str, i: int, failure: str) -> None:
     """Report a retriable failure, and wait before the next attempt unless this was the last."""
     if i < N_ATTEMPTS - 1:
@@ -195,12 +239,8 @@ def api_request(
     if error != "No errors!":
         return error
 
-    # Date and steps parameters.
-    date_begin_time = datetime.strptime(date_begin, DATE_FORMAT)
-    date_end_time = datetime.strptime(date_end, DATE_FORMAT)
-    delta_days = (date_end_time - date_begin_time).total_seconds() / 86400
-    n_steps = int(delta_days / WINDOW_DAYS)
-    final_step = delta_days - WINDOW_DAYS * n_steps
+    # Window boundaries, stepped in Amsterdam local days so a clock change cannot move them.
+    edges = window_edges(date_begin, date_end)
 
     # API parameters
     params = {
@@ -215,28 +255,10 @@ def api_request(
     # List of the final result
     responses = []
 
-    # Cycling through all 300 days period plus the remainder.
-    i = 0
-    while i < n_steps:
-        window_start = date_begin_time + timedelta(days=i * WINDOW_DAYS)
-        window_end = date_begin_time + timedelta(days=(i + 1) * WINDOW_DAYS)
-        params["periodStart"] = window_start.strftime(DATE_FORMAT)
-        params["periodEnd"] = window_end.strftime(DATE_FORMAT)
-        r = error_or_not_api(window_start, window_end, params, timeout=timeout)
-        if r == 0:
-            return
-        elif r == 1:
-            i += 1
-        else:
-            responses.append(r)
-            i += 1
-
-    # The last, shorter window. Skipped when the range is a whole number of windows.
-    if final_step != 0:
-        window_start = date_begin_time + timedelta(days=WINDOW_DAYS * n_steps)
-        window_end = window_start + timedelta(days=final_step)
-        params["periodStart"] = window_start.strftime(DATE_FORMAT)
-        params["periodEnd"] = window_end.strftime(DATE_FORMAT)
+    # One request per window: the boundaries are consecutive pairs of edges.
+    for window_start, window_end in zip(edges, edges[1:], strict=False):
+        params["periodStart"] = window_start
+        params["periodEnd"] = window_end
         r = error_or_not_api(window_start, window_end, params, timeout=timeout)
         if r == 0:
             return
