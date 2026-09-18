@@ -83,6 +83,38 @@ Load equals generation only when imports equal exports plus power put into stora
 
 **Why both are needed.** Load gives how much the zone used; generation gives what it was produced from. Any share of solar or wind can only come from generation, since load carries no production type.
 
+#### What the generation figures count, and how they are computed
+
+From ENTSO-E's [Detailed Data Descriptions](https://eepublicdownloads.entsoe.eu/clean-documents/Transparency/MoP_Ref2_DDD_v3r4.pdf), version 3 release 4, 15 December 2023, the reference document the Manual of Procedures points to for each data item.
+
+**Aggregated generation per type** (page 74, Transparency Regulation articles 16.1.b and 16.2.b) is described as "Actual aggregated Net generation output (MW) per market time unit and per production type", and its calculation as:
+
+> The actual generation shall be computed as the average of all available instantaneous Net generation output values on each market time unit. If a net generation output is not known, it shall be estimated. The actual generation of small-scale units might be estimated if no real-time measurement devices exist
+
+Three things follow.
+
+- **Each value is an average over its market time unit**, not a snapshot, which is what makes megawatts the right unit and makes the hourly mean of quarter-hour values a meaningful quantity.
+- **Small units are not excluded by rule.** Where no real-time meter exists the figure may be an estimate rather than a measurement, so part of the published output, particularly for solar, can be modelled rather than metered.
+- **The 1 MW threshold that is often quoted belongs to a different data item.** It appears in installed generation capacity aggregated (page 62, article 14.1.a), "the sum of generation capacity (MW) installed for all existing production units equaling to or exceeding 1 MW installed generation capacity, per production type". Nothing in the actual generation item sets a size threshold.
+
+Wind and solar generation (article 16.1.c, page 75) is merged into the same data item, and its primary owners are given as "Owners of generating units and / or DSOs", so distributed generation reaches the platform through the distribution operators where they provide it.
+
+**What is still not established:** whether the Dutch data provider includes behind-the-meter rooftop solar in these figures, and if so by what estimate. The documents read set no rule either way, which means the solar figure cannot be assumed to be all Dutch solar production. Any statement about solar share carries that qualification until it is settled with the data provider.
+
+#### Day-ahead prices have a floor and a ceiling, and the floor moved
+
+Day-ahead prices are not free to take any value. Single Day-Ahead Coupling (SDAC), the mechanism that clears the coupled European day-ahead markets including the Netherlands, applies a harmonised minimum and maximum clearing price, set under the Harmonised Maximum and Minimum Clearing Prices methodology, itself established under Article 41(1) of [Commission Regulation (EU) 2015/1222](https://www.legislation.gov.uk/eur/2015/1222/contents/adopted) (the CACM Regulation).
+
+| Limit | Value | In force | Source |
+|---|---|---|---|
+| Maximum | +4,000 EUR/MWh | Since 2022, after an automatic increase to +5,000 planned for 20 September 2022 was suspended following the Extraordinary Energy Council of 9 September 2022 | [Nord Pool operational message, 13 September 2022](https://www.nordpoolgroup.com/en/trading/Operational-Message-List/2022/09/no-changes-in-harmonised-maximum-clearing-price-for-sdac-from-20-september-it-remains-at-4000-eurmwh-20220913080000/) |
+| Minimum | −500 EUR/MWh | Until 27 May 2026 | [SDAC communication note, 7 May 2026](https://www.nemo-committee.eu/assets/files/harmonised-minimum-clearing-price-for-sdac-to-be-set-to-600-eur-per-mwh-starting-from-the-28th-may-2026-(trading-date).pdf) |
+| Minimum | −600 EUR/MWh | From trading date 28 May 2026, delivery date 29 May 2026 | the same note |
+
+**The limits move by rule, not by judgement.** The methodology lowers the minimum by 100 EUR/MWh when the clearing price falls below 70% of the current minimum in at least two market time units, in one or more bidding zones, on at least two different days within 30 rolling days, and the new value applies four weeks after the second such event. The move to −600 was triggered by prices reached for delivery on 26 April 2026 and 1 May 2026.
+
+**What this means for the data.** The most extreme prices in the range are partly a property of these rules rather than of supply and demand: a price exactly at a limit is the limit binding. Because the minimum changed on 29 May 2026, the lowest price reachable is not the same throughout the range, so a minimum, a most-negative value, or any statistic of the tail is not comparable across that date without saying so.
+
 #### What a generation response contains
 
 Observed in `tests/fixtures/generation_nl_20260914.xml`, one Netherlands day, `2026-09-13T22:00Z` to `2026-09-14T22:00Z`, fetched on 2026-09-17.
@@ -190,6 +222,22 @@ What one request can come back as, and what the client does about it. For every 
 **Reasoning.** The API speaks UTC in both directions: `periodStart` and `periodEnd` are sent in UTC, and every timestamp in every document ends in `Z`. A UTC day always has 96 quarter hours, so the parser needs no knowledge of clock changes. An Amsterdam calendar day does not: the day the clocks go forward is 23 hours, 92 quarter hours, and the day they go back is 25 hours, 100 quarter hours, as the fixtures for 2026-03-29 and 2025-10-26 show. Converting in one place means the irregular days are handled once rather than in every query.
 
 **Risk accepted.** Until the time dimension exists, nothing in the parsed data can be grouped by local hour, weekday or date. Doing so on the UTC timestamps would put a local 18:00 at 17:00 in winter and 16:00 in summer.
+
+### Facts are stored at the source's resolution, and the analysis grain is the hour
+
+**Decision.** Each fact table holds one row per market time unit exactly as ENTSO-E published it: load and price one row per market time unit, generation one row per market time unit per production type per direction. Nothing is averaged before it is stored. The analysis works on an hourly table derived from those facts, one row per hour, and every timestamp everywhere is UTC. Hour of day, day of week, month, year and the local Amsterdam labels come from the time dimension, which is also where the 23-hour and 25-hour local days are handled. An hour carries a flag for an event that happened in any market time unit inside it, such as a negative price, computed from the fact rows rather than from the hourly average.
+
+**Reasoning.** The hour is the finest grain the whole range supports: Dutch day-ahead prices were published hourly until October 2025 and quarter-hourly afterwards, so at a finer grain the years before and after are not comparable. Averaging is meaningful in both directions, because each published value is itself an average over its market time unit, per the Detailed Data Descriptions entry quoted above, so an hourly mean of megawatt values is the energy of that hour in megawatt hours. Storing the facts unaveraged keeps every figure traceable to what the API returned, allows a later analysis at quarter-hour resolution for the years that support it, and is what makes the event flags correct: an hour containing one quarter hour at −50 and three at +20 has a positive average and is still an hour with a negative price. Volume is not a reason to aggregate early: five and a half years of all three datasets is on the order of four million rows, which DuckDB handles without effort.
+
+**Risk accepted.** Two tables have to stay in step, and any figure quoted from the hourly table hides what happened inside the hour unless a flag was built for it. Every event definition therefore has to be decided at the fact grain and carried up deliberately; one that is forgotten silently becomes an hourly-average statement instead.
+
+### Grid congestion is context, not a measured quantity
+
+**Decision.** This analysis does not measure grid congestion. Load, generation per production type and day-ahead prices describe the market in the bidding zone as a whole, and are used to study when prices are negative or extreme and what is being produced and consumed at those times. Congestion appears in the framing, as the reason flexibility has value, and in the caveats, never as a result.
+
+**Reasoning.** The Netherlands is a single bidding zone: every participant clears at the same day-ahead price, whatever the physical grid inside the zone can carry, so the price cannot express a local limit by construction. Congestion happens on particular lines, substations and regional grids, and all three datasets used here are national totals with no location in them. What would measure it is published elsewhere under the same Transparency Regulation, in [Article 13](https://www.legislation.gov.uk/eur/2013/543/article/13/adopted), "Information relating to congestion management measures": redispatching per market time unit with the network elements concerned, countertrading, and the monthly cost of both. Those are separate datasets with their own document types and grains, the monthly costs cannot sit at an hourly grain at all, and they cover transmission actions rather than the regional grids where Dutch connection queues are longest.
+
+**Risk accepted.** A reader looking for when and where the Dutch grid is congested will not find it here. Nothing in this analysis separates an hour of national oversupply from an hour when a particular region could not export what it generated, and no claim in the report may attribute a price to a local grid limit.
 
 ### Production types stay as ENTSO-E codes in the parser
 
