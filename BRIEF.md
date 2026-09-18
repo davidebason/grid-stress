@@ -12,12 +12,15 @@ The Netherlands has a grid congestion problem that is public, expensive and wide
 
 The deliverable is a memo an operations or energy manager could act on: a recommendation with a number attached, and the caveats that qualify it. Not a forecast, not a model.
 
+**Two problems share a cause and are not the same problem.** One is a market problem: at some hours there is more electricity than the country can use, prices collapse or go negative, and at other hours they spike. The other is a grid problem: local lines and substations cannot carry what is connected to them, which is what "congestion" names. Both are driven by the growth of solar and wind. This engagement answers the first. The Netherlands is a single bidding zone, so every consumer in it pays the same day-ahead price regardless of the local grid, and no measurement in the data used here says where the grid is constrained. Congestion is the reason flexibility is worth money to this client; it is not what is measured.
+
 ## The questions
 
-1. **How often are prices negative or extreme, and when?** By hour of day, day of week, season.
+1. **How often are prices negative or extreme, and when?** By hour of day, day of week, season and year.
 2. **What is on the system when it happens?** Solar and wind share of generation, total load, and the balance between them.
-3. **How much of the variation is explained by the simple story?** Renewable share against price, stated honestly, including how much it does not explain.
-4. **What would a consumer who could shift load actually gain?** A counterfactual in euros.
+3. **Do load and generation swing at the same times as prices?** The same measures of movement applied to load, generation and consumption, and whether their extreme hours coincide with the extreme price hours.
+4. **How much of the variation is explained by the simple story?** Renewable share against price, stated honestly, including how much it does not explain.
+5. **What would a consumer who could shift load actually gain?** A counterfactual in euros.
 
 ---
 
