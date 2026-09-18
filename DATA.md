@@ -83,6 +83,23 @@ Load equals generation only when imports equal exports plus power put into stora
 
 **Why both are needed.** Load gives how much the zone used; generation gives what it was produced from. Any share of solar or wind can only come from generation, since load carries no production type.
 
+#### How the API treats the requested window
+
+Measured against the live API on 2026-09-18, for the Netherlands.
+
+**Load and generation return exactly the interval requested.** A request for `2020-12-31T23:00Z` to `2021-01-03T23:00Z` came back as one `TimeSeries` with one `Period` of exactly that span, 288 points at `PT15M`. A 300-day window of `A75` is answered in full: 20 series, about 50 MB, status `200`, so the window length the client uses is not near any limit.
+
+**Day-ahead prices come back as whole Amsterdam calendar days, one `TimeSeries` per day.** A 30-day window returned 31 series; a 3-day window returned 4. Each series carries one `Period` of one local day, running 23:00Z to 23:00Z in winter and 22:00Z to 22:00Z in summer, and each has its own resolution: `PT60M` in 2021, `PT15M` in 2026.
+
+**The rule the responses follow:** every local day the requested interval touches is returned complete. A request starting one hour into a day still returns that whole day. The boundary instant belongs to the day that begins at it, so a start exactly on a local midnight includes that day and an end exactly on a local midnight excludes the day beginning there. A request for `2020-12-31T23:00Z` to `2021-01-03T23:00Z` returned exactly three price series, 1 to 3 January.
+
+**Consequences.**
+
+- **Request boundaries are Amsterdam local midnights expressed in UTC**, which is the previous day at 23:00Z in winter and 22:00Z in summer. The offset changes on the last Sunday of March and of October, at 01:00 UTC.
+- **Window boundaries are stepped in local days, not in 24-hour blocks**, otherwise a clock change inside the range moves a boundary off local midnight and back into the widening behaviour above. `window_edges` in `src/gridstress/client.py` does this, and `api_request` sends one request per pair of consecutive edges.
+- **Without that alignment, consecutive windows overlap**: the local day containing a boundary is returned in full by both windows, so a price fetch of seven windows would deliver six duplicated days.
+- **A price response has to be read series by series**, since a single-series read returns one day out of however many the window covers.
+
 #### What the generation figures count, and how they are computed
 
 From ENTSO-E's [Detailed Data Descriptions](https://eepublicdownloads.entsoe.eu/clean-documents/Transparency/MoP_Ref2_DDD_v3r4.pdf), version 3 release 4, 15 December 2023, the reference document the Manual of Procedures points to for each data item.
