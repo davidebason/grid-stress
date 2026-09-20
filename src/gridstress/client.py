@@ -184,12 +184,12 @@ def api_request(
     zone_1: str,
     domain_2: str | None = None,
     zone_2: str | None = None,
-) -> list[requests.Response] | str | None:
+) -> tuple[list[tuple[str, str]], list[tuple[str, str, requests.Response]]] | str | None:
     """Fetch a time range from the ENTSO-E Transparency Platform API, one request per window.
 
-    The range from date_begin to date_end is split into consecutive windows of 300 days, the
-    last one shorter when the range is not a whole multiple of 300 days, and one GET request is
-    sent per window. Each window starts where the previous one ends.
+    The range from date_begin to date_end is split by window_edges into consecutive windows of
+    WINDOW_DAYS local days, the last one shorter when the range is not a whole multiple of them,
+    and one GET request is sent per window. Each window starts where the previous one ends.
 
     The security token is read from the ENTSOE_TOKEN environment variable and sent as the
     securityToken query parameter, so it is part of the request URL: never print or log
@@ -212,22 +212,27 @@ def api_request(
             ignored.
 
     Returns:
-        One of four things, and every failure is also described by the messages printed as it
+        One of three things, and every failure is also described by the messages printed as it
         happens, which name the window, the attempt and what went wrong.
 
-        A list of requests.Response, one per window, in chronological order, each with a status
-        code outside 4xx and 5xx. Each body is a separate XML document, and point positions
-        restart at 1 in each. A window that failed every attempt on something retriable is left
-        out and the others are kept, so a list shorter than the number of windows is not an error
-        by itself: the messages say which window is missing.
+        A pair (missing, responses), where every window of the range appears in exactly one of
+        the two, so the caller never has to work out which window a result belongs to.
+
+        missing holds a (periodStart, periodEnd) pair for each window that failed every attempt
+        on something retriable. Those windows carry no data and can be requested again later; the
+        rest of the range was still fetched.
+
+        responses holds a (periodStart, periodEnd, requests.Response) triple per fetched window,
+        in chronological order, each response with a status code outside 4xx and 5xx. Each body is
+        a separate XML document, and point positions restart at 1 in each. Both lists may be
+        empty: an empty responses with a full missing list means nothing was fetched.
 
         None, when a failure a retry cannot cure ended the fetch. The windows already fetched are
-        discarded with it, because a run that stopped halfway is not a range.
+        discarded with it, because a run that stopped halfway is not a range, and so is the record
+        of which windows were missing.
 
         A message naming the problem with the dates, when they are unusable, in which case no
         request is sent at all.
-
-        The message "No window has reached the result.", when every window failed.
 
     Raises:
         KeyError: if ENTSOE_TOKEN is not set in the environment.
@@ -254,6 +259,7 @@ def api_request(
 
     # List of the final result
     responses = []
+    missing = []
 
     # One request per window: the boundaries are consecutive pairs of edges.
     for window_start, window_end in zip(edges, edges[1:], strict=False):
@@ -262,10 +268,16 @@ def api_request(
         r = error_or_not_api(window_start, window_end, params, timeout=timeout)
         if r == 0:
             return
-        elif r != 1:
-            responses.append(r)
+        elif r == 1:
+            missing.append((window_start, window_end))
+        else:
+            responses.append((window_start, window_end, r))
 
     if len(responses) == 0:
-        return "No window has reached the result."
+        print("All data is missing!")
+    elif len(missing) == 0:
+        print("No data is missing!")
     else:
-        return responses
+        print("Some data is missing!")
+
+    return missing, responses
