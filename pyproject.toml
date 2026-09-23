@@ -13,6 +13,9 @@ authors = [{ name = "Davide Bason", email = "davidebason@gmail.com" }]
 dependencies = [
     "duckdb>=1.0",
     "pandas>=2.2",
+    # DuckDB's Python client needs pytz to return a TIMESTAMPTZ as a Python datetime;
+    # without it, fetchone() and fetchall() raise on any timestamptz column.
+    "pytz>=2024.1",
     "requests>=2.32",
 ]
 
