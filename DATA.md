@@ -49,7 +49,7 @@ The three datasets this project uses:
 | Dataset | `documentType` | `processType` | Zone parameter(s) | Document returned | Value in each point | Unit |
 |---|---|---|---|---|---|---|
 | Actual total load | `A65`, system total load | `A16`, realised | `outBiddingZone_Domain` | `GL_MarketDocument` | `quantity` | `MAW`, megawatts |
-| Actual generation per production type | `A75`, actual generation per type | `A16`, realised | `in_Domain` | `GL_MarketDocument`, two `TimeSeries` per production type, one per direction, see below | `quantity` | `MAW`, megawatts |
+| Actual generation per production type | `A75`, actual generation per type | `A16`, realised | `in_Domain` | `GL_MarketDocument`, one `TimeSeries` per production type and direction, see below | `quantity` | `MAW`, megawatts |
 | Day-ahead prices | `A44`, price document | none | `in_Domain` and `out_Domain`, both the same zone | `Publication_MarketDocument` | `price.amount` | `EUR` per `MWH` |
 
 The Netherlands is `10YNL----------L`. The window of one request is kept to 300 days by the client, below the API's limit of about one year.
@@ -58,7 +58,7 @@ The Netherlands is `10YNL----------L`. The window of one request is kept to 300 
 
 **How the value and its unit are known.** Two independent sources, which agree.
 
-1. **Each document states its own unit.** Every `TimeSeries` carries a unit element next to its data: `quantity_Measure_Unit.name` in load and generation documents, `currency_Unit.name` and `price_Measure_Unit.name` in price documents. In every fixture under `tests/fixtures/`, fetched on 2026-09-16 and 2026-09-17, these read `MAW` for load and generation, and `EUR` with `MWH` for prices. Which element inside a `Point` carries the number, `quantity` or `price.amount`, was read from the same fixtures: load and generation points hold `position` and `quantity`, price points hold `position` and `price.amount`, and nothing else.
+1. **Each document states its own unit.** Every `TimeSeries` carries a unit element next to its data: `quantity_Measure_Unit.name` in load and generation documents, `currency_Unit.name` and `price_Measure_Unit.name` in price documents. In every fixture under `tests/fixtures/` recorded from the API, fetched on 2026-09-16 and 2026-09-17, these read `MAW` for load and generation, and `EUR` with `MWH` for prices. Which element inside a `Point` carries the number, `quantity` or `price.amount`, was read from the same fixtures: load and generation points hold `position` and `quantity`, price points hold `position` and `price.amount`, and nothing else.
 2. **ENTSO-E defines the codes.** The [ENTSO-E General Code Lists for Data Interchange](https://eepublicdownloads.entsoe.eu/clean-documents/EDI/Library/Core/entso-e-code-list-v36r0.pdf), version 36, release 0, 2015-06-09, list 28 `StandardUnitOfMeasureTypeList`, defines `MAW` as "Mega watt", a unit of bulk power flow, and `MWH` as "Mega watt hours", the total amount of bulk energy transferred or consumed. `EUR` is the ISO 4217 code for the euro.
 
 So a load or generation value is a power in megawatts, and a price is euros per megawatt hour of energy. The unit belongs to the document a value came from: a document reporting a different unit code would say so in these same elements.
@@ -89,7 +89,7 @@ Measured against the live API on 2026-09-18, for the Netherlands.
 
 **Load and generation return exactly the interval requested.** A request for `2020-12-31T23:00Z` to `2021-01-03T23:00Z` came back as one `TimeSeries` with one `Period` of exactly that span, 288 points at `PT15M`. A 300-day window of `A75` is answered in full: 20 series, about 50 MB, status `200`, so the window length the client uses is not near any limit.
 
-**Day-ahead prices come back as whole Amsterdam calendar days, one `TimeSeries` per day.** A 30-day window returned 31 series; a 3-day window returned 4. Each series carries one `Period` of one local day, running 23:00Z to 23:00Z in winter and 22:00Z to 22:00Z in summer, and each has its own resolution: `PT60M` in 2021, `PT15M` in 2026.
+**Day-ahead prices come back as whole Amsterdam calendar days, one `TimeSeries` per day.** A 30-day window returned 31 series; a 3-day window returned 4. Each series carries one `Period` of one local day, running 23:00Z to 23:00Z in winter and 22:00Z to 22:00Z in summer, and each has its own resolution, which changes once over the range: see The resolution of each dataset below.
 
 **The rule the responses follow:** every local day the requested interval touches is returned complete. A request starting one hour into a day still returns that whole day. The boundary instant belongs to the day that begins at it, so a start exactly on a local midnight includes that day and an end exactly on a local midnight excludes the day beginning there. A request for `2020-12-31T23:00Z` to `2021-01-03T23:00Z` returned exactly three price series, 1 to 3 January.
 
@@ -99,6 +99,20 @@ Measured against the live API on 2026-09-18, for the Netherlands.
 - **Window boundaries are stepped in local days, not in 24-hour blocks**, otherwise a clock change inside the range moves a boundary off local midnight and back into the widening behaviour above. `window_edges` in `src/gridstress/client.py` does this, and `api_request` sends one request per pair of consecutive edges.
 - **Without that alignment, consecutive windows overlap**: the local day containing a boundary is returned in full by both windows, so a price fetch of seven windows would deliver six duplicated days.
 - **A price response has to be read series by series**, since a single-series read returns one day out of however many the window covers.
+
+#### The resolution of each dataset, and when the price resolution changed
+
+Established by `analysis/01_price_resolution.py`, which reads every response in `data/raw/`, fetched on 2026-09-20, covering the Amsterdam local days 2021-01-01 to 2026-08-31.
+
+**Load and generation are `PT15M` throughout the range.** Each of the seven `A65` responses carries one `Period` and each of the seven `A75` responses carries twenty, one per production type. All 147 of those Periods are `PT15M`, and no resolution change appears anywhere in the range.
+
+**Day-ahead prices change from `PT60M` to `PT15M` exactly once.** The last hourly `Period` begins `2025-09-29T22:00Z` and the first quarter-hourly one begins `2025-09-30T22:00Z`; no hourly `Period` begins after that instant. Those are the local days 2025-09-30 and 2025-10-01. Over the range, 1,734 price Periods are `PT60M` and 335 are `PT15M`.
+
+**The change is a European market reform, not a Dutch publication change.** The Market Coupling Steering Committee confirmed the go-live of the 15-minute market time unit in Single Day-Ahead Coupling "on trading day 30 September 2025 for delivery day 1 October 2025", announced on [12 September 2025](https://www.ote-cr.cz/en/about-ote/ote-news/market-coupling-steering-committee-confirms-go-live-of-15-minute-mtu-in-sdac-on-trading-day-30-september-2025-for-delivery-day-1-october-2025), and [Austrian Power Grid reported on 1 October 2025](https://markt.apg.at/en/news-press/sdac-go-live-of-15-minute-market-time-unit-in-day-ahead-market-coupling-successful-as-of-september-30-2025/) that it "was successfully introduced on the trading day of 30 September 2025 for the delivery day of 1 October 2025 in all European bidding zones and across bidding zone borders". Delivery day 1 October 2025 is the first quarter-hourly local day in the data, so the published decision and the responses agree to the day.
+
+**Resolution is a property of the individual series and has to be read from it.** Both resolutions occur inside a single fetched file: the sixth price window, `202502082300` to `202512052300`, holds 234 hourly Periods followed by 66 quarter-hourly ones. A row therefore cannot be labelled from any constant derived from the fetch, and in particular `2025-12-05` is the sixth window edge, 300 days after the fifth, with no meaning in the data.
+
+**The number of points cannot stand in for the resolution.** Every Period in all three datasets carries `curveType` `A03`, whose block encoding is described under What a generation response contains below, so a Period routinely lists fewer points than its interval has positions. Hourly price days carry 17 to 25 points where a complete 23, 24 or 25-hour local day needs 23, 24 or 25; quarter-hourly price days carry 79 to 97 where a complete one needs 92, 96 or 100. The sparsest case in the range is an `A75` series holding a single point for a whole 300-day window. The `resolution` element is the only source for what a position means.
 
 #### What the generation figures count, and how they are computed
 
@@ -138,7 +152,7 @@ Observed in `tests/fixtures/generation_nl_20260914.xml`, one Netherlands day, `2
 
 The document holds 20 `TimeSeries`, each with one `Period` covering the whole day. All 20 have `curveType` `A03`, `resolution` `PT15M`, unit `MAW`, `businessType` `A01` and `objectAggregation` `A08`. The production type sits in `MktPSRType/psrType` inside each series. The children of a series come in this order: `mRID`, `businessType`, `objectAggregation`, the domain element, `quantity_Measure_Unit.name`, `curveType`, `MktPSRType`, `Period`.
 
-**On this day, each production type appears twice, once per direction.** Ten series carry `inBiddingZone_Domain.mRID` and ten carry `outBiddingZone_Domain.mRID`, with the same ten `psrType` codes in each group, and no series carries both. In this response, therefore, each of the ten types present has one `in` series and one `out` series. Consumption series exist for every type in the response, not only for storage; no storage type (`B10`, `B25`) appears on this day.
+**On this day, each production type appears twice, once per direction.** Ten series carry `inBiddingZone_Domain.mRID` and ten carry `outBiddingZone_Domain.mRID`, with the same ten `psrType` codes in each group, and no series carries both. In this response, therefore, each of the ten types present has one `in` series and one `out` series. Consumption series exist for every type in the response, not only for storage; no storage type (`B10`) appears on this day.
 
 **How the meaning of the two directions is known.** Two sources.
 
@@ -244,7 +258,7 @@ What one request can come back as, and what the client does about it. For every 
 
 **Decision.** Each fact table holds one row per market time unit exactly as ENTSO-E published it: load and price one row per market time unit, generation one row per market time unit per production type per direction. Nothing is averaged before it is stored. The analysis works on an hourly table derived from those facts, one row per hour, and every timestamp everywhere is UTC. Hour of day, day of week, month, year and the local Amsterdam labels come from the time dimension, which is also where the 23-hour and 25-hour local days are handled. An hour carries a flag for an event that happened in any market time unit inside it, such as a negative price, computed from the fact rows rather than from the hourly average.
 
-**Reasoning.** The hour is the finest grain the whole range supports: Dutch day-ahead prices were published hourly until October 2025 and quarter-hourly afterwards, so at a finer grain the years before and after are not comparable. Averaging is meaningful in both directions, because each published value is itself an average over its market time unit, per the Detailed Data Descriptions entry quoted above, so an hourly mean of megawatt values is the energy of that hour in megawatt hours. Storing the facts unaveraged keeps every figure traceable to what the API returned, allows a later analysis at quarter-hour resolution for the years that support it, and is what makes the event flags correct: an hour containing one quarter hour at −50 and three at +20 has a positive average and is still an hour with a negative price. Volume is not a reason to aggregate early: five and a half years of all three datasets is on the order of four million rows, which DuckDB handles without effort.
+**Reasoning.** The hour is the finest grain the whole range supports: Dutch day-ahead prices were published hourly through the local day 2025-09-30 and quarter-hourly from 2025-10-01, as established under The resolution of each dataset above, so at a finer grain the years before and after are not comparable. Averaging is meaningful in both directions, because each published value is itself an average over its market time unit, per the Detailed Data Descriptions entry quoted above, so an hourly mean of megawatt values is the energy of that hour in megawatt hours. Storing the facts unaveraged keeps every figure traceable to what the API returned, allows a later analysis at quarter-hour resolution for the years that support it, and is what makes the event flags correct: an hour containing one quarter hour at −50 and three at +20 has a positive average and is still an hour with a negative price. Volume is not a reason to aggregate early: five and a half years of all three datasets is on the order of four million rows, which DuckDB handles without effort.
 
 **Risk accepted.** Two tables have to stay in step, and any figure quoted from the hourly table hides what happened inside the hour unless a flag was built for it. Every event definition therefore has to be decided at the fact grain and carried up deliberately; one that is forgotten silently becomes an hourly-average statement instead.
 
@@ -263,3 +277,25 @@ What one request can come back as, and what the client does about it. For every 
 **Reasoning.** The only list of names read for this project is version 36 of the ENTSO-E code lists, dated 2015-06-09, and whether later versions add production types was not checked. A mapping inside the parser would have to be complete for every code the API may ever send: a code missing from it either stops the parse or produces a series with no name, and either failure depends on a document that has not arrived yet. Keeping the code costs nothing in information, since the code is the identifier ENTSO-E itself uses, and it cannot go out of date. Names are a matter of presentation, and belong where the data is presented.
 
 **Risk accepted.** Parsed output is less readable: a series reads `B18`, not wind offshore, until the codes are joined to names. That join, in the production type dimension or in the report, has to be kept in step with the code list, and a code it does not know will show up there without a name rather than stopping the parse.
+
+## What the database holds
+
+Built by `python -m gridstress.load`, which runs the three files in `sql/pre_load/` and then inserts every response in `data/raw/` inside a single transaction. Built on 2026-09-23 from the responses fetched on 2026-09-20.
+
+The actual counts are logged by the loader as it commits, so they come from the code that produced the tables. The expected counts come from `analysis/02_expected_row_counts.py`, which derives them from the fetch range and the documents' own metadata without opening the database.
+
+| Table | One row is | Expected | Actual |
+|---|---|---|---|
+| `dim_production_type` | one ENTSO-E `psrType` code | 20 | 20 |
+| `dim_time` | one hour, keyed on the UTC instant | 49,655 | 49,655 |
+| `fact_load` | one market time unit | 198,620 | 198,620 |
+| `fact_price` | one market time unit | 73,775 | 73,775 |
+| `fact_generation` | one market time unit, production type and direction | 3,972,400 | 3,972,400 |
+
+**Where each expectation comes from.** `dim_time` and `fact_load` are the whole hours and the whole quarter hours between the two range boundaries, since load is `PT15M` for every date in the range. `fact_price` is 41,615 hourly units through the local day 2025-09-30 plus 32,160 quarter-hourly units from 2025-10-01, split at the market time unit change described above. `fact_generation` is, for each `A75` window, the number of `TimeSeries` it carries times the quarter hours in that window. `dim_production_type` is the twenty production types `B01` to `B20` of code list v36r0.
+
+**What the agreement establishes.** Every expectation was computed before the load and matched to the row, which rules out a window silently missing, and rules out the `A03` fill generating too many or too few points. `fact_generation` splits exactly in half, 1,986,200 rows in each direction with ten production types on each side.
+
+**And one thing that was previously unestablished.** No primary key was violated on any of the three fact tables, whose keys are `date_utc`, `date_utc`, and `(date_utc, psr_type, direction)`. Consecutive windows therefore do not both return the boundary instant they share, which the request-widening behaviour described under How the API treats the requested window left open. Had they done so, the load would have failed rather than double-counted.
+
+**The clock changes land where they should.** The per-file counts the loader logs show 28,796 rows for the `A65` window containing a spring change and 28,804 for the one containing an autumn change, against 28,800 for a window containing neither, which is one hour of quarter hours either way.
