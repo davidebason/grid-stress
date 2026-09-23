@@ -116,11 +116,11 @@ def test_load_dense_day():
     created, revision, frame = read("load_nl_20260914_dense.xml")
     assert created == "2026-09-16T04:28:02Z"
     assert revision == "1"
-    assert list(frame.columns) == ["date_utc", "power_mw"]
+    assert list(frame.columns) == ["date_utc", "load_mw"]
     assert_regular_times(frame, utc("2026-09-13 22:00"), 96)
     assert frame["date_utc"].iloc[-1] == utc("2026-09-14 21:45")
-    assert frame["power_mw"].iloc[0] == 10377.306
-    assert frame["power_mw"].iloc[-1] == 11061.016
+    assert frame["load_mw"].iloc[0] == 10377.306
+    assert frame["load_mw"].iloc[-1] == 11061.016
 
 
 @pytest.mark.parametrize(
@@ -148,14 +148,14 @@ def test_load_clock_change_days(name, first, last, n_rows, first_value, last_val
     _, _, frame = read(name)
     assert_regular_times(frame, utc(first), n_rows)
     assert frame["date_utc"].iloc[-1] == utc(last)
-    assert frame["power_mw"].iloc[0] == first_value
-    assert frame["power_mw"].iloc[-1] == last_value
+    assert frame["load_mw"].iloc[0] == first_value
+    assert frame["load_mw"].iloc[-1] == last_value
 
 
 def test_load_hand_built_sparse_day_is_filled_like_the_dense_day():
     _, _, frame = read("load_nl_20260914_sparse_handbuilt.xml")
     assert_regular_times(frame, utc("2026-09-13 22:00"), 96)
-    power = frame["power_mw"]
+    power = frame["load_mw"]
     # position p is row p - 1
     assert power.iloc[0] == 10377.306
     assert list(power.iloc[3:9]) == [10459.096] * 6  # position 4 listed, 5 to 9 omitted
@@ -169,7 +169,7 @@ def test_load_sparse_and_dense_agree_wherever_the_sparse_file_lists_a_point():
     _, _, sparse = read("load_nl_20260914_sparse_handbuilt.xml")
     listed_rows = [p - 1 for p in [1, 2, 3, 4, *range(10, 61), 90]]
     assert list(sparse["date_utc"]) == list(dense["date_utc"])
-    assert list(sparse["power_mw"].iloc[listed_rows]) == list(dense["power_mw"].iloc[listed_rows])
+    assert list(sparse["load_mw"].iloc[listed_rows]) == list(dense["load_mw"].iloc[listed_rows])
 
 
 # Prices, A44
@@ -179,8 +179,9 @@ def test_price_day():
     created, revision, frame = read("price_nl_20260914.xml")
     assert created == "2026-09-16T04:32:15Z"
     assert revision == "1"
-    assert list(frame.columns) == ["date_utc", "price_eur_per_mwh"]
+    assert list(frame.columns) == ["date_utc", "resolution", "price_eur_per_mwh"]
     assert_regular_times(frame, utc("2026-09-13 22:00"), 96)
+    assert list(frame["resolution"].unique()) == ["PT15M"]
     assert list(frame["price_eur_per_mwh"].iloc[:3]) == [218.18, 205.79, 196.0]
     assert frame["price_eur_per_mwh"].iloc[-1] == 202.16
 
@@ -210,41 +211,40 @@ def listed_points(code, direction_element):
     }
 
 
-def test_generation_is_split_into_generation_and_consumption():
-    created, revision, groups = read(GENERATION)
+def test_generation_is_one_frame_carrying_both_directions():
+    created, revision, frame = read(GENERATION)
     assert created == "2026-09-17T02:14:38Z"
     assert revision == "1"
-    assert [label for label, _ in groups] == ["generation", "consumption"]
-    for _, items in groups:
-        assert len(items) == 10
-        assert {code for code, _ in items} == CODES_ON_THE_DAY
+    assert list(frame.columns) == ["date_utc", "psr_type", "direction", "power_mw"]
+    assert sorted(frame["direction"].unique()) == ["in", "out"]
+    for direction in ("in", "out"):
+        assert set(frame.loc[frame["direction"] == direction, "psr_type"]) == CODES_ON_THE_DAY
+    assert len(frame) == 2 * len(CODES_ON_THE_DAY) * 96
 
 
-def test_generation_frames_cover_the_day():
-    _, _, groups = read(GENERATION)
-    for _, items in groups:
-        for _, frame in items:
-            assert list(frame.columns) == ["date_utc", "power_mw"]
-            assert_regular_times(frame, utc("2026-09-13 22:00"), 96)
+def test_every_series_covers_the_day():
+    _, _, frame = read(GENERATION)
+    for _, group in frame.groupby(["psr_type", "direction"], sort=False):
+        assert_regular_times(group, utc("2026-09-13 22:00"), 96)
 
 
 @pytest.mark.parametrize(
-    ("label", "element"),
+    ("direction", "element"),
     [
-        ("generation", "d:inBiddingZone_Domain.mRID"),
-        ("consumption", "d:outBiddingZone_Domain.mRID"),
+        ("in", "d:inBiddingZone_Domain.mRID"),
+        ("out", "d:outBiddingZone_Domain.mRID"),
     ],
 )
-def test_generation_values_follow_the_listed_points(label, element):
+def test_generation_values_follow_the_listed_points(direction, element):
     """Listed values sit at their own positions; omitted positions repeat the last listed value."""
-    _, _, groups = read(GENERATION)
-    items = dict(groups)[label]
-    for code, frame in items:
+    _, _, frame = read(GENERATION)
+    for code in sorted(CODES_ON_THE_DAY):
+        series = frame[(frame["psr_type"] == code) & (frame["direction"] == direction)]
         listed = listed_points(code, element)
         current = None
         for position in range(1, 97):
             current = listed.get(position, current)
-            assert frame["power_mw"].iloc[position - 1] == current, (label, code, position)
+            assert series["power_mw"].iloc[position - 1] == current, (direction, code, position)
 
 
 def test_generation_keeps_codes_it_has_never_seen(tmp_path):
@@ -256,9 +256,9 @@ def test_generation_keeps_codes_it_has_never_seen(tmp_path):
     )
     path = tmp_path / "generation_with_unknown_code.xml"
     path.write_text(text, encoding="utf-8")
-    _, _, groups = my_parse.xml_reader(path)
-    for _, items in groups:
-        assert "B99" in {code for code, _ in items}
+    _, _, frame = my_parse.xml_reader(path)
+    for direction in ("in", "out"):
+        assert "B99" in set(frame.loc[frame["direction"] == direction, "psr_type"])
 
 
 # Documents the parser does not read
