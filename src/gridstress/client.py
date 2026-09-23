@@ -236,7 +236,6 @@ def api_request(
 
     Raises:
         KeyError: if ENTSOE_TOKEN is not set in the environment.
-        ValueError: if date_begin or date_end is not in the "YYYYMMDDHHmm" format.
     """
 
     # Check if dates are correct
