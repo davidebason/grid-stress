@@ -17,9 +17,9 @@ The deliverable is a memo an operations or energy manager could act on: a recomm
 ## The questions
 
 1. **How often are prices negative or extreme, and when?** By hour of day, day of week, season and year.
-2. **What is on the system when it happens?** Solar and wind share of generation, total load, and the balance between them.
+2. **What is on the system when it happens?** The generation mix in those hours set against an ordinary hour, and which parts of it move.
 3. **Do load and generation swing at the same times as prices?** The same measures of movement applied to load, generation and consumption, and whether their extreme hours coincide with the extreme price hours.
-4. **How much of the variation is explained by the simple story?** Renewable share against price, stated honestly, including how much it does not explain.
+4. **How much of the variation is explained by the simple story?** Stated honestly, including how much it does not explain, and what this source cannot measure at all. Changed on 2026-09-24: the renewable share, named in the superseded wording below, turns out not to be computable from ENTSO-E's Dutch data, for the reason recorded in `DATA.md` under What TenneT publishes per production type. Superseded wording, kept so the change stays visible: *Renewable share against price, stated honestly, including how much it does not explain.*
 5. **What would a consumer who could shift load actually gain?** A counterfactual in euros.
 
 ---
@@ -48,7 +48,8 @@ Confirmed by direct query before work started:
 
 - `A03` block encoding: a parser that assumes one point per interval works until the source sends a sparse series.
 - UTC in, local out: the API speaks UTC and the market speaks CET/CEST.
-- `A75` mixes generation and consumption series. Pumped storage and batteries report both, distinguished by `inBiddingZone_Domain` against `outBiddingZone_Domain`; summing blindly nets out storage.
+- `A75` mixes generation and consumption series, distinguished by `inBiddingZone_Domain` against `outBiddingZone_Domain`; summing blindly counts consumption as generation. No storage type appears in either direction for the Netherlands, so the consumption series is not storage charging.
+- Generation is published per fuel type only where TenneT can identify the fuel. The rest is filed as `B20 Other` or not published at all, which makes `B16 Solar` unusable as a national solar figure and makes any share of summed generation a share of what was published.
 - Power against energy: `MAW` is instantaneous; anything cumulative needs the interval.
 - Data revisions: ENTSO-E restates published values.
 

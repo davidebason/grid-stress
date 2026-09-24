@@ -132,6 +132,20 @@ Wind and solar generation (article 16.1.c, page 75) is merged into the same data
 
 **What is still not established:** whether the Dutch data provider includes behind-the-meter rooftop solar in these figures, and if so by what estimate. The documents read set no rule either way, which means the solar figure cannot be assumed to be all Dutch solar production. Any statement about solar share carries that qualification until it is settled with the data provider.
 
+#### What TenneT publishes per production type, and what it does not
+
+TenneT states, on the ENTSO-E page for this dataset: *"TenneT NL: The publication represents the generation identifiable per fuel type, if not identifiable the data is published as 'others' or not published."* Two things follow, and both bound what any figure on this page can mean.
+
+**`B20 Other` is not a fuel.** It is the residue of output whose fuel TenneT could not determine, and for the Netherlands it is the largest single component of published generation: 4,046 MW mean and 15,943 MW at its highest hour, larger than fossil gas on both counts. Its behaviour separates into two parts that move in opposite seasons. Its daily swing, the day's maximum minus its minimum, runs 2,554 MW in December and 8,262 MW in June, which is the shape of sunlight. Its daily floor runs the other way, 2,199 MW in January and 1,034 MW in August, which is the shape of a heating season. Neither part can be attributed to a named fuel from this source; both can be measured as behaviour.
+
+**`B16 Solar` is therefore not Dutch solar output.** It is the part that is identifiable, meaning transmission-connected plant: 428 MW at its highest hour across the whole range, and flat at 47 to 67 MW of mean output from 2021 to 2026, a period over which installed Dutch solar capacity roughly doubled. Any renewable share computed from `B16` understates solar by more than an order of magnitude.
+
+**And "or not published" means summed generation is not total generation.** Every share whose denominator is `SUM(power_mw)` is a share of *published* generation, not of what the Netherlands generated.
+
+**Eleven quarter-hours of `B20` are not physical, and all of them fall in 2023.** They run from 16,000 to 28,237 MW, and the largest four exceed the highest load the Netherlands recorded in the whole range, 20,718 MW. A single production type cannot out-produce national demand by 36%. No other year contains a value above 16,000 MW. They are listed by `analysis/04_generation_identifiability.sql` and are excluded from nothing yet; any statistic over `B20` that uses a maximum rather than a median inherits them.
+
+**Risk accepted.** The renewable share, and residual load defined as `load − solar − wind`, cannot be computed from this source. Bounding them by excluding and then including `B20` gives a renewable share of 17.8% or 48.8% and a residual load of 10,399 MW or 6,353 MW, a range too wide for either to carry a conclusion. Any question needing those quantities is answered from a different measurable or is not answered here. The figures in this section regenerate from `analysis/04_generation_identifiability.sql`.
+
 #### Day-ahead prices have a floor and a ceiling, and the floor moved
 
 Day-ahead prices are not free to take any value. Single Day-Ahead Coupling (SDAC), the mechanism that clears the coupled European day-ahead markets including the Netherlands, applies a harmonised minimum and maximum clearing price, set under the Harmonised Maximum and Minimum Clearing Prices methodology, itself established under Article 41(1) of [Commission Regulation (EU) 2015/1222](https://www.legislation.gov.uk/eur/2015/1222/contents/adopted) (the CACM Regulation).
