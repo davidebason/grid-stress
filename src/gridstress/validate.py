@@ -6,7 +6,10 @@ check and raises once with all the failures rather than stopping at the first, b
 that breaks one invariant usually breaks several and seeing them together says more.
 
 The rules come from DATA.md: the bounds SDAC applies to a clearing price, the directions an A75
-series can carry, the production type code list, and the hours an Amsterdam local day has. None
+series can carry, the production type code list, and the hours an Amsterdam local day has. The
+upper bound on generation is the one rule with no published source behind it, so it is set by the
+data itself: a single production type cannot plausibly out-produce the highest load the country
+ever recorded, and the bound moves with the load table rather than sitting as a constant. None
 of them is a property of the current data; they are properties the data must keep having after a
 refetch, a parser change or a fourth dataset.
 
@@ -52,6 +55,10 @@ CHECKS = {
                   WHEN date_utc >= TIMESTAMPTZ '{FLOOR_MOVED}' THEN {FLOOR_AFTER}
                   ELSE {FLOOR_BEFORE}
               END
+    """,
+    "fact_generation: no production type out-produces the highest load ever recorded": """
+        SELECT date_utc, psr_type, direction, power_mw FROM fact_generation
+        WHERE power_mw > (SELECT MAX(load_mw) FROM fact_load)
     """,
     "fact_generation: direction is only 'in' or 'out'": """
         SELECT DISTINCT direction FROM fact_generation WHERE direction NOT IN ('in', 'out')

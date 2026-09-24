@@ -119,6 +119,10 @@ CORRUPTIONS = {
         "UPDATE fact_price SET price_eur_per_mwh = 9999 "
         "WHERE date_utc = (SELECT MIN(date_utc) FROM fact_price)"
     ),
+    "fact_generation: no production type out-produces the highest load ever recorded": (
+        "UPDATE fact_generation SET power_mw = "
+        "(SELECT MAX(load_mw) FROM fact_load) + 1 WHERE psr_type = 'B04'"
+    ),
     "fact_generation: direction is only 'in' or 'out'": (
         "UPDATE fact_generation SET direction = 'sideways' WHERE direction = 'in'"
     ),
