@@ -19,7 +19,7 @@ from pathlib import Path
 
 import duckdb
 
-from gridstress import my_parse
+from gridstress import my_parse, validate
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,9 @@ def main() -> None:
                 source_file,
                 time.time() - t,
             )
+
+        # Inside the transaction, so a database that breaks an invariant is never committed.
+        validate.validate(con)
 
     except Exception:
         con.execute("ROLLBACK")
