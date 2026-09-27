@@ -332,7 +332,7 @@ The roll-up is not the chained aggregation this project avoids elsewhere. That h
 
 ## What the database holds
 
-Built by `python -m gridstress.load`, which runs the three files in `sql/pre_load/` and then inserts every response in `data/raw/` inside a single transaction. Built on 2026-09-24 from the responses fetched on 2026-09-20.
+Built by `python -m gridstress.load`, which runs the first three files in `sql/` and then inserts every response in `data/raw/` inside a single transaction. Built on 2026-09-24 from the responses fetched on 2026-09-20.
 
 The actual counts are logged by the loader as it commits, so they come from the code that produced the tables. The expected counts come from `analysis/02_expected_row_counts.py`, which derives them from the fetch range and the documents' own metadata without opening the database.
 

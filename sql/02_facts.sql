@@ -1,3 +1,5 @@
+-- Run by `python -m gridstress.load`, before any response is inserted.
+--
 -- The three fact tables, one per dataset, each covering the whole range from the raw responses in
 -- data/raw. Grains, and the reasoning behind them, are in DATA.md.
 --

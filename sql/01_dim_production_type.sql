@@ -1,3 +1,5 @@
+-- Run by `python -m gridstress.load`, before any response is inserted.
+--
 -- Production types: the psrType codes that arrive in A75 documents, and their names.
 --
 -- Source: ENTSO-E General Code Lists for Data Interchange, version 36 release 0, 2015-06-09,

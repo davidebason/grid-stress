@@ -7,7 +7,7 @@
 --
 -- Numbered 00 because it answers a question asked before the hourly tables are built, and is
 -- deliberately self-contained: it reads the fact tables rather than table_h_price_load, so the
--- bar can be checked without first running sql/post_load/.
+-- bar can be checked without first running sql/04_hourly_tables.sql.
 --
 -- Section 1 is the bar itself. Section 2 shows why the quantile is taken over hourly means
 -- rather than over market time units. Section 3 is the distribution of the hours it selects.

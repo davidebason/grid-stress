@@ -1,12 +1,12 @@
 """Load the fetched ENTSO-E responses into DuckDB.
 
 Reads every response in data/raw/, parses it with my_parse, and inserts the rows into the three
-fact tables declared in sql/pre_load/: fact_load, fact_generation and fact_price. Every row
+fact tables declared in sql/: fact_load, fact_generation and fact_price. Every row
 carries the four provenance columns, so any figure can be traced back to the file it came from
 and the day that file was fetched.
 
 No modelling decisions are made here. The grain, the keys and the dimensions are settled in
-sql/pre_load/, which runs first; this module only moves parsed rows into the tables those files
+sql/, which runs first; this module only moves parsed rows into the tables those files
 declare. See DATA.md for provenance and the reasoning behind the model.
 
 A program, not a library: run it with `python -m gridstress.load`.
@@ -22,6 +22,16 @@ import duckdb
 from gridstress import my_parse, validate
 
 logger = logging.getLogger(__name__)
+
+# The files that declare the tables, in the order they must run: the production type dimension
+# first because the facts reference it, then the facts, then the hourly grid. Named here rather
+# than globbed from sql/, so that adding a file to that directory cannot silently change what a
+# load runs. tests/test_validate.py builds its database from this same list.
+SQL_SCHEMA = (
+    "01_dim_production_type.sql",
+    "02_facts.sql",
+    "03_dim_time.sql",
+)
 
 DICT_SQL = {
     "a44": """
@@ -65,7 +75,8 @@ SQL_DROP_IMPOSSIBLE = """
 def main() -> None:
     """Rebuild every table from the responses in data/raw/.
 
-    Runs the declarations in sql/pre_load/ first, then inserts one file at a time inside a single
+    Runs the first three files in sql/ to declare the tables, then inserts one file at a time
+    inside a single
     transaction, so a run that fails part way leaves no partial load behind.
     """
 
@@ -79,7 +90,7 @@ def main() -> None:
     project_root = Path(__file__).resolve().parents[2]
     raw = project_root / "data" / "raw"
     db_path = project_root / "data" / "processed" / "grid.duckdb"
-    sql_dir = project_root / "sql" / "pre_load"
+    sql_dir = project_root / "sql"
 
     # Make directories if missing.
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -92,9 +103,8 @@ def main() -> None:
     # Start loading SQL tables.
     con = duckdb.connect(db_path)
     con.execute("SET TimeZone = 'UTC'")
-    con.execute((sql_dir / "01_dim_production_type.sql").read_text())
-    con.execute((sql_dir / "02_facts.sql").read_text())
-    con.execute((sql_dir / "03_dim_time.sql").read_text())
+    for name in SQL_SCHEMA:
+        con.execute((sql_dir / name).read_text())
 
     # Add data to the SQL tables.
     t0 = time.time()

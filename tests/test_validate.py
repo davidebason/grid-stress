@@ -1,7 +1,7 @@
 """Tests for the load invariants, against a small database built from the recorded fixtures.
 
 CI never sees data/raw, which is gitignored, so these tests build their own database: the three
-files in sql/pre_load/ followed by five fixture documents inserted through the same statements
+files in sql/ followed by five fixture documents inserted through the same statements
 load.py uses. It is the real schema and the real insert path over a few thousand rows.
 
 Each check in validate.CHECKS gets a corruption that should make it fire, and a test that it
@@ -18,7 +18,7 @@ import pytest
 from gridstress import load, my_parse, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
-SQL_DIR = Path(__file__).resolve().parents[1] / "sql" / "pre_load"
+SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
 
 # One fixture per document type, plus both clock-change days. The hand-built sparse load file is
 # left out because it covers the same day as the dense one and would collide on the primary key.
@@ -43,9 +43,10 @@ def build(documents=DOCUMENTS, extra=None):
     """A fresh in-memory database: the real schema, then these documents inserted as load does."""
     con = duckdb.connect()
     con.execute("SET TimeZone = 'UTC'")
-    for sql_file in sorted(SQL_DIR.glob("*.sql")):
+    for name in load.SQL_SCHEMA:
+        sql_file = SQL_DIR / name
         sql = sql_file.read_text()
-        if sql_file.name == "03_dim_time.sql":
+        if name == "03_dim_time.sql":
             assert sql.count(DIM_TIME_END) == 1
             sql = sql.replace(DIM_TIME_END, DIM_TIME_END_FOR_FIXTURES)
         con.execute(sql)

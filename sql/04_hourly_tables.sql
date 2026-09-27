@@ -1,3 +1,12 @@
+-- Run by hand after the load, against a database built by `python -m gridstress.load`:
+--
+--     duckdb data/processed/grid.duckdb -c ".read sql/04_hourly_tables.sql"
+--
+-- Unlike the three files before it, this one is not run by the loader and is not covered by
+-- validate.py. It builds the three tables the analysis queries are asked over, at the grains
+-- fixed in the analysis plan: one row per hour, one row per hour per production type, one row
+-- per Amsterdam local day.
+
 SET TimeZone = 'UTC';
 
 -- CREATE OR REPLACE TABLE table_load AS
