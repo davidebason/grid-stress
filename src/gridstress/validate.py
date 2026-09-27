@@ -9,9 +9,12 @@ The rules come from DATA.md: the bounds SDAC applies to a clearing price, the di
 series can carry, the production type code list, and the hours an Amsterdam local day has. The
 upper bound on generation is the one rule with no published source behind it, so it is set by the
 data itself: a single production type cannot plausibly out-produce the highest load the country
-ever recorded, and the bound moves with the load table rather than sitting as a constant. None
-of them is a property of the current data; they are properties the data must keep having after a
-refetch, a parser change or a fourth dataset.
+ever recorded, and the bound moves with the load table rather than sitting as a constant. That
+rule no longer discovers anything, because `load.py` deletes the rows breaking it before calling
+this module; it stays so the deletion is confirmed rather than assumed, and so the bound is
+written down beside the other eleven rules. None of them is a property of the current data;
+they are properties the data must keep having after a refetch, a parser change or a fourth
+dataset.
 
 `load.py` calls this inside its transaction, so a failure rolls the whole load back and leaves
 the previous database untouched.

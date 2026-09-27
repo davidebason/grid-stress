@@ -50,6 +50,17 @@ DICT_SQL = {
     """,
 }
 
+# A production type cannot out-produce the highest load the country has ever drawn, so a value
+# that does is a publishing fault rather than a reading. The rows are deleted rather than
+# corrected, because nothing in the response says what the true value was. The bound is read
+# from fact_load rather than written as a constant, so it moves with the data. See "Seven
+# generation values are impossible, and are dropped rather than corrected" in DATA.md.
+SQL_DROP_IMPOSSIBLE = """
+    DELETE FROM fact_generation
+    WHERE power_mw > (SELECT MAX(load_mw) FROM fact_load)
+    RETURNING date_utc, psr_type, direction, power_mw
+"""
+
 
 def main() -> None:
     """Rebuild every table from the responses in data/raw/.
@@ -109,6 +120,15 @@ def main() -> None:
                 f"{len(df):,}",
                 source_file,
                 time.time() - t,
+            )
+
+        # After the loop, not inside it: the bound is the maximum of fact_load, which is only
+        # complete once every a65 file has been inserted.
+        dropped = con.execute(SQL_DROP_IMPOSSIBLE).fetchall()
+        logger.info("dropped %s impossible generation rows", f"{len(dropped):,}")
+        for date_utc, psr_type, direction, power_mw in dropped:
+            logger.info(
+                "  dropped %s %s %s, %s MW", date_utc, psr_type, direction, f"{power_mw:,.1f}"
             )
 
         # Inside the transaction, so a database that breaks an invariant is never committed.
