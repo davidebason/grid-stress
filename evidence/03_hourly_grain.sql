@@ -3,7 +3,7 @@
 -- Establishes the three figures quoted under "Price is rolled up to the hour before it is
 -- profiled" in DATA.md. Run against a database built by `python -m gridstress.load`:
 --
---     duckdb data/processed/grid.duckdb -c ".read analysis/03_hourly_grain.sql"
+--     duckdb data/processed/grid.duckdb -c ".read evidence/03_hourly_grain.sql"
 --
 -- Section 1 is the weighting a profile inherits if it groups market time units directly, since
 -- an hour is one row before 2025-10-01 and four after. Section 2 is what the roll-up removes.
