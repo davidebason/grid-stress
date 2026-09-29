@@ -58,6 +58,11 @@ def build(documents=DOCUMENTS, extra=None):
         df["created_utc"] = "2026-09-17T00:00:00Z"
         df["revision"] = "1"
         con.execute(load.DICT_SQL[document_type])
+
+    # The derived tables, in the same order and at the same point as load.main() runs them, so
+    # the checks over them are exercised against the same SQL that production uses.
+    for name in load.SQL_DERIVED:
+        con.execute((SQL_DIR / name).read_text())
     return con
 
 
@@ -129,6 +134,31 @@ CORRUPTIONS = {
     ),
     "fact_generation: every production type is in the dimension": (
         "UPDATE fact_generation SET psr_type = 'B99' WHERE psr_type = 'B16'"
+    ),
+    "table_h_price_load: one row per hour, never two": (
+        "INSERT INTO table_h_price_load SELECT * FROM table_h_price_load LIMIT 1"
+    ),
+    "table_h_price_load: the two event flags are disjoint": (
+        "UPDATE table_h_price_load SET price_neg = TRUE, extreme_price = TRUE "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_h_price_load)"
+    ),
+    "table_composition: shares sum to one in every hour": (
+        "UPDATE table_composition SET share_h = share_h / 2 "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_composition)"
+    ),
+    "table_composition: one row per hour per production type": (
+        "INSERT INTO table_composition SELECT * FROM table_composition LIMIT 1"
+    ),
+    "b20_thermal_table: one row per Amsterdam local day": (
+        "INSERT INTO b20_thermal_table SELECT * FROM b20_thermal_table LIMIT 1"
+    ),
+    "table_h_price_post: every row is a row of the hourly table": (
+        "DELETE FROM table_h_price_load "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_h_price_post)"
+    ),
+    "table_h_price_post: nothing before the boundary it is defined by": (
+        "INSERT INTO table_h_price_post "
+        "SELECT * REPLACE (DATE '2022-01-01' AS date_ams) FROM table_h_price_post LIMIT 1"
     ),
     "fact tables: every hour used is an hour dim_time holds": (
         "INSERT INTO fact_load (date_utc, load_mw) "

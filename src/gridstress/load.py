@@ -5,9 +5,13 @@ fact tables declared in sql/: fact_load, fact_generation and fact_price. Every r
 carries the four provenance columns, so any figure can be traced back to the file it came from
 and the day that file was fetched.
 
-No modelling decisions are made here. The grain, the keys and the dimensions are settled in
-sql/, which runs first; this module only moves parsed rows into the tables those files
-declare. See DATA.md for provenance and the reasoning behind the model.
+The modelling lives in sql/, not here: the first three files declare the grain, the keys and
+the dimensions before anything is inserted, and the last two derive the hourly, by-type and
+daily tables the analysis is asked over once the facts are in. This module decides nothing; it
+runs those files in order and moves parsed rows between them. See DATA.md for the reasoning.
+
+Everything happens in one transaction, so a run that fails leaves the previous database intact,
+and validate() sees the derived tables as well as the facts before anything is committed.
 
 A program, not a library: run it with `python -m gridstress.load`.
 """
@@ -31,6 +35,15 @@ SQL_SCHEMA = (
     "01_dim_production_type.sql",
     "02_facts.sql",
     "03_dim_time.sql",
+)
+
+# The tables derived from the facts, so they can only run once the facts are in. Inside the same
+# transaction as the inserts: a derived table built from rows that are about to be rolled back
+# would otherwise survive the rollback and disagree with the facts underneath it, which is how a
+# database ends up answering queries from data it no longer holds.
+SQL_DERIVED = (
+    "04_hourly_tables.sql",
+    "05_post_crisis.sql",
 )
 
 DICT_SQL = {
@@ -141,6 +154,12 @@ def main() -> None:
                 "  dropped %s %s %s, %s MW", date_utc, psr_type, direction, f"{power_mw:,.1f}"
             )
 
+        # The derived tables, now that every fact row is in and the impossible ones are out.
+        for name in SQL_DERIVED:
+            t = time.time()
+            con.execute((sql_dir / name).read_text())
+            logger.info("ran %s in %.1fs", name, time.time() - t)
+
         # Inside the transaction, so a database that breaks an invariant is never committed.
         validate.validate(con)
 
@@ -157,6 +176,10 @@ def main() -> None:
             "fact_load",
             "fact_price",
             "fact_generation",
+            "table_h_price_load",
+            "table_composition",
+            "b20_thermal_table",
+            "table_h_price_post",
         ):
             rows = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             logger.info("rows in %s: %s", table, f"{rows:,}")

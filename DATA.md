@@ -358,7 +358,7 @@ The roll-up is not the chained aggregation this project avoids elsewhere. That h
 
 ## What the database holds
 
-Built by `python -m gridstress.load`, which runs the first three files in `sql/` and then inserts every response in `data/raw/` inside a single transaction. Built on 2026-09-24 from the responses fetched on 2026-09-20.
+Built by `python -m gridstress.load`, which runs every file in `sql/` and inserts every response in `data/raw/` inside a single transaction: the first three declare the tables, the responses go in, the impossible generation values come out, the last two derive the analysis tables, and `validate.py` sees all of it before anything is committed. Built on 2026-09-29 from the responses fetched on 2026-09-20.
 
 The actual counts are logged by the loader as it commits, so they come from the code that produced the tables. The expected counts come from `evidence/02_expected_row_counts.py`, which derives them from the fetch range and the documents' own metadata without opening the database.
 
@@ -369,8 +369,14 @@ The actual counts are logged by the loader as it commits, so they come from the 
 | `fact_load` | one market time unit | 198,620 | 198,620 |
 | `fact_price` | one market time unit | 73,775 | 73,775 |
 | `fact_generation` | one market time unit, production type and direction | 3,972,400 | 3,972,393 |
+| `table_h_price_load` | one hour: price measures, the two event flags, load | 49,655 | 49,655 |
+| `table_composition` | one hour and production type, generating only | 496,550 | 496,550 |
+| `b20_thermal_table` | one Amsterdam local day | 2,069 | 2,069 |
+| `table_h_price_post` | one hour, from 2023-03-01 | 30,719 | 30,719 |
 
 **Where each expectation comes from.** `dim_time` and `fact_load` are the whole hours and the whole quarter hours between the two range boundaries, since load is `PT15M` for every date in the range. `fact_price` is 41,615 hourly units through the local day 2025-09-30 plus 32,160 quarter-hourly units from 2025-10-01, split at the market time unit change described above. `fact_generation` is, for each `A75` window, the number of `TimeSeries` it carries times the quarter hours in that window. `dim_production_type` is the twenty production types `B01` to `B20` of code list v36r0.
+
+The four derived tables follow from those. `table_h_price_load` is one row per hour, so it equals `dim_time`. `table_composition` is 49,655 hours times the ten production types the `A75` responses actually carry, generating direction only. `b20_thermal_table` is the Amsterdam local days in the range. `table_h_price_post` is the hours from 2023-03-01, 62% of them, for the reason under The 2021 and 2022 price level is a gas-market event above.
 
 **The one gap, and why it is the expected size.** `fact_generation` holds seven rows fewer than the documents carry, and those are exactly the seven the loader deletes under Seven generation values are impossible above. The expectation is what the API published; the table is what survived the check. Every other count matches, which is what says the parser read every series it was given and the loader inserted every row it parsed.
 
