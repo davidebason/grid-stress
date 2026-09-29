@@ -258,6 +258,32 @@ What one request can come back as, and what the client does about it. For every 
 
 **Never printed.** The token travels as the `securityToken` query parameter, so it is part of every request URL. The client prints only the class name of an exception, never `str(err)`, `repr(err)`, `err.request.url` or `response.url`, each of which contains the token.
 
+## What the range itself contains
+
+Two properties of this particular five and a half years, rather than of the datasets. Both are established by `evidence/06_price_regimes.sql`.
+
+### The 2021 and 2022 price level is a gas-market event, and does not compare with the rest of the range
+
+**What the data shows.** The median Dutch hourly day-ahead price by year: 78.3, 217.0, 99.2, 80.0, 90.4 and 108.1 EUR/MWh for 2021 to 2026. 2022 sits at roughly two and a half times every year after it. Month by month the rise is gradual and the fall is abrupt: about 50 EUR/MWh through the spring of 2021, 78 in June, 133 in September, 226 in December, then a peak of 449 in August 2022 and 139 by that October. The first extreme hours anywhere in the range are five hours in September 2021.
+
+**What caused it is not measured here.** Dutch day-ahead prices are set by gas-fired plant at the margin in a large share of hours, so they follow the European gas price, and the 2021–22 period was a gas supply crisis: European storage refilled slowly after the cold 2020–21 winter, Russian pipeline flows fell through the second half of 2021, and Russia invaded Ukraine on 24 February 2022, after which flows were cut further and then halted. Two supply-side problems unrelated to gas compounded 2022: a large part of the French nuclear fleet was offline for stress-corrosion inspections, and a severe European drought reduced hydro output and limited river cooling for thermal plant. None of that is in the three datasets used here — no gas price, no imports, no exports, no plant availability — so it is recorded as context, and no figure in this project measures it.
+
+**Risk accepted.** Any statistic over price *levels* that spans 2022 mixes two regimes, and the extreme-hour flag concentrates in one of them by construction: 4,055 of the 4,956 extreme hours are in 2022 and 641 in 2021, leaving 47 to 80 a year afterwards. A year-on-year comparison of extreme hours therefore tracks the gas price rather than anything about the Dutch grid, and 2021 is not a high year throughout — its extreme hours are almost all in its last four months. Statistics defined on the *sign* of the price, rather than its level, are unaffected, which is part of why the negative flag is a sign test.
+
+### Negative hours rise across the range, and this source cannot attribute the rise
+
+**What the data shows.** Negative hours per year: 70, 85, 316, 458, 592, and 449 in the 5,831 hours of a partial 2026. As a share of each year's hours that is 0.8%, 1.0%, 3.6%, 5.2%, 6.8% and 7.7%, so the rise is monotonic including 2026, which the raw counts hide. Over the same years the mean hourly output of wind offshore (`B18`) doubles, 877 to 1,787 MW, and of the unidentifiable bucket (`B20`) grows 57%, 3,108 to 4,887 MW. Wind onshore (`B19`) does not follow: it peaks in 2023 at 952 MW and falls to 729.
+
+**What cannot be attributed, and why.** Three quantities that would bear on the rise are not available from this source.
+
+*Solar growth is invisible.* `B16 Solar` runs between 47 and 67 MW as an annual mean and its annual peak sits between 331 and 428 MW, flat across six years, for the reason under What TenneT publishes per production type above: `B16` is the transmission-connected remnant and everything distribution-connected is filed elsewhere or not at all.
+
+*`B20`'s growth is not decomposable.* It is a mixture, with a floor that follows the heating season rather than the sun, 2,199 MW in January against 1,034 in August. How much of its 57% growth is solar is exactly the quantity that leaves the renewable share bounded at 17.8% or 48.8%.
+
+*Efficiency cannot be measured at all.* A capacity factor needs installed capacity, and none of the three datasets carries it. Output growing says nothing about whether the fleet grew or improved.
+
+**Risk accepted.** The rise in negative hours is a measurement; its cause is not. This project may state that negative hours grew, that offshore wind and the unidentifiable bucket grew alongside them, and that onshore wind did not — and no more than that. A claim that solar growth drives negative prices is not supportable from this source in either direction, and the contrast that *can* be measured is the composition shift between flagged and unflagged hours, not the level.
+
 ## Decisions
 
 ### Timestamps stay in UTC until the time dimension
