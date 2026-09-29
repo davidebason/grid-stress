@@ -3,7 +3,7 @@
 -- Establishes the figures quoted under "What TenneT publishes per production type, and what it
 -- does not" in DATA.md. Run against a database built by `python -m gridstress.load`:
 --
---     duckdb data/processed/grid.duckdb -c ".read evidence/04_generation_identifiability.sql"
+--     duckdb -readonly data/processed/grid.duckdb -c ".read evidence/04_generation_identifiability.sql"
 --
 -- Section 1 sizes each production type. Section 2 splits B20 into the part that follows the sun
 -- and the part that does not. Section 3 shows why B16 cannot be a national solar figure.

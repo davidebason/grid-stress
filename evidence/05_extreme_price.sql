@@ -3,7 +3,7 @@
 -- Establishes every figure quoted under "A negative hour and an extreme hour are two separate
 -- flags" in DATA.md. Run against a database built by `python -m gridstress.load`:
 --
---     duckdb data/processed/grid.duckdb -c ".read evidence/05_extreme_price.sql"
+--     duckdb -readonly data/processed/grid.duckdb -c ".read evidence/05_extreme_price.sql"
 --
 -- Deliberately self-contained: it reads the fact tables rather than table_h_price_load, so the
 -- bar can be checked without first running sql/04_hourly_tables.sql.
