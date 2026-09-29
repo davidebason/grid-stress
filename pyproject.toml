@@ -24,6 +24,15 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.5",
 ]
+# Making pictures, and exploring which picture to make. Kept out of dependencies because no module
+# under src/ imports any of them: the package fetches, parses, loads and validates without drawing
+# anything. Install with `pip install -e ".[figures]"`.
+figures = [
+    "matplotlib>=3.9",
+    "jupyter>=1.1",
+    # Strips notebook outputs on commit, so a diff shows code rather than rendered images.
+    "nbstripout>=0.7",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

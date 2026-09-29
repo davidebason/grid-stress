@@ -7,3 +7,7 @@
 *.duckdb  binary
 *.gz      binary
 *.png     binary
+
+# Notebooks: outputs are stripped on commit, so the diff shows code (see pyproject figures).
+*.ipynb filter=nbstripout
+*.ipynb diff=ipynb
