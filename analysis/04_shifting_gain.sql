@@ -298,6 +298,35 @@ ORDER BY pre.month_date
 ;
 
 
+-- The daily spread at hourly grain, every year of the range, like for like: before the switch
+-- each hour's single price, after it the mean of its four quarters. The before-and-after
+-- comparison above cannot give this, since it measures each period at its own grain, and the
+-- memo's level since 2023 and its 2022 comparison rest on it. Expected rows: 6.
+WITH hourly AS (
+    SELECT
+        date_ams,
+        year_date,
+        date_trunc('hour', date_utc) AS hour_utc,
+        AVG(price_eur_per_mwh)       AS price_h
+    FROM table_price_unit
+    GROUP BY date_ams, year_date, date_trunc('hour', date_utc)
+),
+daily AS (
+    SELECT
+        date_ams, year_date,
+        MAX(price_h) - PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_h) AS spread_h
+    FROM hourly
+    GROUP BY date_ams, year_date
+)
+SELECT
+    year_date,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spread_h), 1) AS med_spread_hourly,
+    COUNT(*)                                                         AS days
+FROM daily
+GROUP BY year_date
+ORDER BY year_date
+;
+
 -- Is the period part the switch? If moving to quarter-hour prices had itself narrowed the
 -- hourly spread, the narrowing would show as a step at October 2025 and in every season alike.
 -- This sets each month since the crisis against the same month in other years, all at hourly
