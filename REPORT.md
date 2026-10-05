@@ -200,6 +200,21 @@ Measuring the after days at hourly grain as well gives the figures needed to spl
 
 **The parts are differences between group medians, so they add up exactly** on each base. The period columns rest on one post-change month per row, against four or five earlier ones on the whole range and two or three on the post-crisis base.
 
+### Is the period part the switch?
+
+If moving to quarter-hour prices had itself narrowed the hourly spread, the narrowing would show as a step at October 2025, and in every season alike. Each month since the crisis, at hourly grain, against the same month in other years:
+
+| Year | Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2023 | | | 58 | 41 | 37 | 39 | 45 | 48 | 79 | 69 | 47 | 32 |
+| 2024 | 36 | 34 | 43 | 59 | 49 | 66 | 73 | 55 | 62 | 74 | 46 | 34 |
+| 2025 | 58 | 57 | 66 | 64 | 65 | 65 | 42 | 42 | 63 | **51** | **37** | **23** |
+| 2026 | **36** | **33** | **73** | **56** | **53** | **91** | **46** | **50** | | | | |
+
+Bold is after the switch. **There is no step at the boundary**: July and August 2025, just before it, were already at 42, and October 2025 is 51. **Most after-months sit inside the range the same month took in earlier years**: January and February 2026, 36 and 33, match January and February 2024, 36 and 34; July and August 2026 sit among their earlier values. The period part's narrowing in those months comes from comparing against unusually wide ones, January and February 2025 at 58 and 57 and October 2023 and 2024 at 69 and 74. **The same month moves about as much between years as the period part itself**: June runs 39, 66, 65, 91 and January 36, 58, 36. October to December are the lowest of their columns, and June 2026 the highest of its, so the after months are not simply average either; but with one year after the switch and two or three before, none of this separates the switch from ordinary variation between years.
+
+**Why the averaging would not produce it.** Before the switch each hour cleared at one price for the whole hour, which was not a noisier figure than the mean of four quarter-hour prices; it was the market's single price for that hour. Pricing every quarter-hour revealed variation inside the hour, which is what the grain part measures, rather than removing variation the hourly price had.
+
 ### The sensitivity: what this is worth per year
 
 **From EUR per MWh to EUR per year, per MW of load the client can move**, over the same 335 days so both scenarios are priced identically. Two assumptions are varied: how many hours a day the MW is moved, and whether it moves in hours or quarter-hours. Held fixed: the client knows each day's prices in advance, as day-ahead publication allows; moved load lands within the same day at an ordinary, median unit rather than the cheapest; the client is too small to move the price; and only the wholesale price counts. Annual figures are the mean daily saving times 365, since a year is a total.
