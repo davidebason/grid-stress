@@ -2,7 +2,7 @@
 
 **A working record, not the memo.** The memo — situation, approach, findings, recommendation, caveats — is written once the findings are settled, together with `README.md` and the figure. This file exists so that a number found in September is still available in November, and so that every one of them carries the file that regenerates it.
 
-Shares and counts below are over the whole range, 49,655 hours from 2021-01-01 to 2026-08-31, unless a line says otherwise. Anything touching price *levels* or extreme hours is affected by the 2021-2022 gas-market event recorded in `DATA.md`; anything touching the sign of the price is not.
+Shares and counts below are over the whole range, 49,655 hours from 2021-01-01 to 2026-08-31, unless a line says otherwise. Anything touching price *levels* or extreme hours is affected by the 2021-2022 gas-market event recorded in `DATA.md`; anything touching the sign of the price is not. **The range decision, settled 2026-10-05: both.** The whole range is the reference throughout, and a post-crisis version from 2023-03-01 is given beside it wherever a finding changes with it. So far that is Q4's period column, where the crisis in the base inflated the apparent narrowing, by nearly three times in December; Q1's extreme-hour findings carry the caveat above; Q2 and Q3 already report each year separately.
 
 ---
 
@@ -166,58 +166,57 @@ The widening is concentrated in spring and early summer: March to June gain 18.9
 
 ### Grain or period: the decomposition
 
-Measuring the after days at hourly grain as well gives three figures per group — before at hourly grain, after at hourly grain, after at quarter-hour grain — and the comparison's change splits exactly into a **period** part, hourly against hourly, and a **grain** part, quarter-hour against hourly on the same days.
+Measuring the after days at hourly grain as well gives the figures needed to split the comparison's change exactly into a **period** part, hourly against hourly, and a **grain** part, quarter-hour against hourly on the same days. The period part is given against two bases: the whole hourly range, which includes the 2021-2022 crisis, and the post-crisis range from 2023-03-01. The grain part needs no second version, since it is measured on the after days alone.
 
-| Day | Before, hourly | After, hourly | After, quarter-hour | Period | Grain | Change |
-|---|---|---|---|---|---|---|
-| Monday | 70.3 | 55.5 | 88.6 | −14.8 | +33.1 | +18.3 |
-| Tuesday | 62.4 | 48.6 | 67.8 | −13.9 | +19.2 | +5.3 |
-| Wednesday | 59.8 | 53.1 | 68.5 | −6.7 | +15.4 | +8.7 |
-| Thursday | 55.2 | 47.5 | 72.2 | −7.7 | +24.7 | +17.0 |
-| Friday | 48.0 | 40.9 | 60.5 | −7.2 | +19.6 | +12.5 |
-| Saturday | 45.5 | 38.5 | 47.6 | −7.0 | +9.1 | +2.1 |
-| Sunday | 53.7 | 38.3 | 45.7 | −15.5 | +7.5 | −8.0 |
+| Day | Before, all | Before, post-crisis | After, hourly | After, quarter-hour | Period | Period, post-crisis | Grain | Change | Change, post-crisis |
+|---|---|---|---|---|---|---|---|---|---|
+| Monday | 70.3 | 72.8 | 55.5 | 88.6 | −14.8 | −17.3 | +33.1 | +18.3 | +15.8 |
+| Tuesday | 62.4 | 58.3 | 48.6 | 67.8 | −13.9 | −9.7 | +19.2 | +5.3 | +9.5 |
+| Wednesday | 59.8 | 54.0 | 53.1 | 68.5 | −6.7 | −0.8 | +15.4 | +8.7 | +14.5 |
+| Thursday | 55.2 | 50.4 | 47.5 | 72.2 | −7.7 | −2.9 | +24.7 | +17.0 | +21.8 |
+| Friday | 48.0 | 45.1 | 40.9 | 60.5 | −7.2 | −4.2 | +19.6 | +12.5 | +15.4 |
+| Saturday | 45.5 | 40.6 | 38.5 | 47.6 | −7.0 | −2.1 | +9.1 | +2.1 | +7.0 |
+| Sunday | 53.7 | 47.5 | 38.3 | 45.7 | −15.5 | −9.2 | +7.5 | −8.0 | −1.7 |
 
-| Month | Before, hourly | After, hourly | After, quarter-hour | Period | Grain | Change |
-|---|---|---|---|---|---|---|
-| 1 | 46.0 | 36.2 | 46.6 | −9.8 | +10.4 | +0.6 |
-| 2 | 45.7 | 33.4 | 42.8 | −12.3 | +9.5 | −2.8 |
-| 3 | 57.2 | 72.8 | 89.8 | +15.6 | +16.9 | +32.5 |
-| 4 | 55.0 | 56.1 | 92.5 | +1.1 | +36.4 | +37.5 |
-| 5 | 44.6 | 53.4 | 63.5 | +8.8 | +10.1 | +18.9 |
-| 6 | 52.7 | 91.2 | 104.1 | +38.5 | +12.9 | +51.4 |
-| 7 | 51.3 | 46.2 | 59.8 | −5.1 | +13.6 | +8.5 |
-| 8 | 54.3 | 49.8 | 65.4 | −4.5 | +15.6 | +11.1 |
-| 10 | 79.3 | 51.4 | 79.8 | −27.9 | +28.5 | +0.5 |
-| 11 | 57.8 | 37.0 | 58.7 | −20.7 | +21.7 | +1.0 |
-| 12 | 52.5 | 23.3 | 30.2 | −29.2 | +7.0 | −22.2 |
+| Month | Before, all | Before, post-crisis | After, hourly | After, quarter-hour | Period | Period, post-crisis | Grain | Change | Change, post-crisis |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 46.0 | 45.7 | 36.2 | 46.6 | −9.8 | −9.5 | +10.4 | +0.6 | +0.9 |
+| 2 | 45.7 | 42.5 | 33.4 | 42.8 | −12.3 | −9.1 | +9.5 | −2.8 | +0.4 |
+| 3 | 57.2 | 56.7 | 72.8 | 89.8 | +15.6 | +16.1 | +16.9 | +32.5 | +33.0 |
+| 4 | 55.0 | 53.1 | 56.1 | 92.5 | +1.1 | +3.0 | +36.4 | +37.5 | +39.4 |
+| 5 | 44.6 | 44.4 | 53.4 | 63.5 | +8.8 | +9.0 | +10.1 | +18.9 | +19.1 |
+| 6 | 52.7 | 56.2 | 91.2 | 104.1 | +38.5 | +35.0 | +12.9 | +51.4 | +47.9 |
+| 7 | 51.3 | 48.0 | 46.2 | 59.8 | −5.1 | −1.8 | +13.6 | +8.5 | +11.9 |
+| 8 | 54.3 | 48.2 | 49.8 | 65.4 | −4.5 | +1.6 | +15.6 | +11.1 | +17.2 |
+| 10 | 79.3 | 70.6 | 51.4 | 79.8 | −27.9 | −19.3 | +28.5 | +0.5 | +9.2 |
+| 11 | 57.8 | 46.5 | 37.0 | 58.7 | −20.7 | −9.5 | +21.7 | +1.0 | +12.2 |
+| 12 | 52.5 | 33.2 | 23.3 | 30.2 | −29.2 | −10.0 | +7.0 | −22.2 | −3.0 |
 
-**The two parts pull in opposite directions, and the grain is the one that won.** Measured like with like, at hourly grain, the market offered a *narrower* daily spread after the switch on every day of the week, by 6.7 to 15.5, and in seven of eleven months. The finer grain more than made up for it on every weekday, by 7.5 to 33.1, and in every month, by 7.0 to 36.4. So nearly all of the widening in the comparison above belongs to the finer grain, and without it the opportunity would have shrunk.
+**The two parts pull in opposite directions, and the grain is the one that won.** Measured like with like, at hourly grain, the market offered a *narrower* daily spread after the switch on every day of the week. Against the whole range the narrowing is 6.7 to 15.5; against the post-crisis base it is 0.8 to 17.3, close to zero on Wednesday, Thursday and Saturday and largest on Monday, Tuesday and Sunday. By month the market narrowed in seven of eleven months against the whole range and six against the post-crisis base, August turning slightly positive. The finer grain more than made up for it on every weekday, by 7.5 to 33.1, and in every month, by 7.0 to 36.4, so on either base nearly all of the widening in the comparison belongs to the finer grain.
 
-**Three exceptions run the other way.** March, May and June were wider at hourly grain too, by 15.6, 8.8 and 38.5, so in late spring the market itself offered more, with June mostly period and only 12.9 of its 51.4 grain. These are the months in which Q1 found the negative hours concentrated; nothing here connects the two. April is the purest grain case: level at hourly grain, +36.4 from the quarter-hours. And October, flat in the comparison, is a 27.9 narrowing offset almost exactly by a 28.5 grain gain.
+**The crisis in the base inflates the narrowing, and the post-crisis column is the one to quote for it.** The 2021-2022 spreads drag the whole-range medians up, most in the winter months, where December's period part falls from −29.2 to −10.0 and November's from −20.7 to −9.5 once the crisis years leave the base. The direction survives on every day of the week. The size shrinks on six of the seven, from 6.7 to 0.8 on Wednesday, and grows only on Monday, from 14.8 to 17.3.
 
-**The parts are differences between group medians, so they add up exactly.** The period column rests on one post-change month per row against four or five earlier ones.
+**Three exceptions run the other way on both bases.** March, May and June were wider at hourly grain too, by 15.6 to 16.1, 8.8 to 9.0 and 35.0 to 38.5, so in late spring the market itself offered more, with June mostly period and only 12.9 of it grain. These are the months in which Q1 found the negative hours concentrated; nothing here connects the two. April is the purest grain case: level at hourly grain, +36.4 from the quarter-hours. October is a narrowing of 19.3 to 27.9 offset by a 28.5 grain gain.
+
+**The parts are differences between group medians, so they add up exactly** on each base. The period columns rest on one post-change month per row, against four or five earlier ones on the whole range and two or three on the post-crisis base.
 
 ### The sensitivity: what this is worth per year
 
-**From EUR per MWh to EUR per year, per MW of load the client can move**, over the same 335 days so every scenario is priced identically. Four assumptions are varied: how many hours a day the MW is moved, whether it moves in hours or quarter-hours, whether the client acts on day-ahead prices or follows a fixed schedule, and whether moved load may land in the next day. Held fixed throughout: the client is too small to move the price, only the wholesale price counts, and moved load lands at an ordinary, median unit rather than the cheapest. Annual figures are the mean daily saving times 365, since a year is a total.
+**From EUR per MWh to EUR per year, per MW of load the client can move**, over the same 335 days so both scenarios are priced identically. Two assumptions are varied: how many hours a day the MW is moved, and whether it moves in hours or quarter-hours. Held fixed: the client knows each day's prices in advance, as day-ahead publication allows; moved load lands within the same day at an ordinary, median unit rather than the cheapest; the client is too small to move the price; and only the wholesale price counts. Annual figures are the mean daily saving times 365, since a year is a total.
 
-| Block | Notice | Crosses midnight | EUR/MWh, 1 h a day | EUR per MW per year, 1 h | 2 h | 4 h |
-|---|---|---|---|---|---|---|
-| hour | day-ahead | no | 63.65 | 23,200 | 43,600 | 72,300 |
-| quarter | day-ahead | no | 75.58 | 27,600 | 49,000 | 79,300 |
-| hour | day-ahead | yes | 63.92 | 23,300 | 43,700 | 72,600 |
-| quarter | day-ahead | yes | 75.86 | 27,700 | 49,200 | 79,700 |
-| hour | none, fixed hours | no | 41.86 | 15,300 | 30,100 | 51,300 |
+| Block | EUR/MWh, 1 h a day | EUR per MW per year, 1 h | 2 h | 4 h |
+|---|---|---|---|---|
+| hour | 63.65 | 23,200 | 43,600 | 72,300 |
+| quarter | 75.58 | 27,600 | 49,000 | 79,300 |
 
-**Reading it, one assumption at a time.**
+**Reading it.**
 
-- **Notice is worth the most.** A fixed schedule that always avoids the hours dearest before the change, 20:00, 19:00, 21:00 and 18:00, earns 15,300 per MW per year for one hour a day; acting on day-ahead prices earns 23,200, about half as much again. Most of the value is in knowing which hours to avoid on the day.
 - **Quarter-hour blocks add 19% at one hour a day**, 4,400 per MW per year, falling to 10% at four hours, 7,000. The finer grain matters most to a client moving little load, because its advantage is in the very top units.
 - **Volume has diminishing returns.** Four hours a day earns 3.1 times one hour, not 4, since each further hour escaped is cheaper than the last.
-- **Crossing midnight adds almost nothing**, 100 to 400 per MW per year. The ordinary unit of the next day is priced much like today's.
 
-The figure a client sets against the cost of the equipment is therefore in the range 15,000 to 80,000 EUR per MW of flexible load per year over this period, and which end applies is decided mostly by whether they act on day-ahead prices and how many hours they can move, much less by grain and hardly at all by midnight. It rests on eleven months of one regime, October 2025 to August 2026.
+The figure a client sets against the cost of the equipment is therefore about **23,000 to 80,000 EUR per MW of flexible load per year** over this period, decided mostly by how many hours they can move and less by the grain. It rests on eleven months of one regime, October 2025 to August 2026, and on the client acting on each day's prices.
+
+**Two assumptions were tested and then held, to keep the study simple.** A client with no notice, following a fixed timetable that avoids the hours dearest before the switch, earned about a third less: 15,300 per MW per year for one hour a day against 23,200. Letting moved load land in the next day changed the figures by 100 to 400. Neither is computed by the file any longer; both figures are regenerated by `analysis/04_shifting_gain.sql` as it stood at commit `91633ed`.
 
 **No author's reading recorded.**
 
@@ -225,5 +224,4 @@ The figure a client sets against the cost of the equipment is therefore in the r
 
 ## Open
 
-- Q4_GAIN's euro figures rest on the eleven post-change months only. Whether to also price the hourly scenarios over the post-crisis period from 2023-03, for a longer base, is part of the range decision below.
-- Whether the question files run against the whole range, the post-2023-03 table, or both.
+- No author's reading is recorded for Q3 or Q4.
