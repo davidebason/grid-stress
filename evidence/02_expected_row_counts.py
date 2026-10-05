@@ -7,7 +7,7 @@ number of TimeSeries each A75 response carries.
 
 Run from the repository root:
 
-    python analysis/02_expected_row_counts.py
+    python evidence/02_expected_row_counts.py
 
 Regenerates the expected figures quoted under "What the database holds" in DATA.md.
 """

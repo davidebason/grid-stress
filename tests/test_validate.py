@@ -1,7 +1,7 @@
 """Tests for the load invariants, against a small database built from the recorded fixtures.
 
 CI never sees data/raw, which is gitignored, so these tests build their own database: the three
-files in sql/pre_load/ followed by five fixture documents inserted through the same statements
+files in sql/ followed by five fixture documents inserted through the same statements
 load.py uses. It is the real schema and the real insert path over a few thousand rows.
 
 Each check in validate.CHECKS gets a corruption that should make it fire, and a test that it
@@ -18,7 +18,7 @@ import pytest
 from gridstress import load, my_parse, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
-SQL_DIR = Path(__file__).resolve().parents[1] / "sql" / "pre_load"
+SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
 
 # One fixture per document type, plus both clock-change days. The hand-built sparse load file is
 # left out because it covers the same day as the dense one and would collide on the primary key.
@@ -43,9 +43,10 @@ def build(documents=DOCUMENTS, extra=None):
     """A fresh in-memory database: the real schema, then these documents inserted as load does."""
     con = duckdb.connect()
     con.execute("SET TimeZone = 'UTC'")
-    for sql_file in sorted(SQL_DIR.glob("*.sql")):
+    for name in load.SQL_SCHEMA:
+        sql_file = SQL_DIR / name
         sql = sql_file.read_text()
-        if sql_file.name == "03_dim_time.sql":
+        if name == "03_dim_time.sql":
             assert sql.count(DIM_TIME_END) == 1
             sql = sql.replace(DIM_TIME_END, DIM_TIME_END_FOR_FIXTURES)
         con.execute(sql)
@@ -57,6 +58,11 @@ def build(documents=DOCUMENTS, extra=None):
         df["created_utc"] = "2026-09-17T00:00:00Z"
         df["revision"] = "1"
         con.execute(load.DICT_SQL[document_type])
+
+    # The derived tables, in the same order and at the same point as load.main() runs them, so
+    # the checks over them are exercised against the same SQL that production uses.
+    for name in load.SQL_DERIVED:
+        con.execute((SQL_DIR / name).read_text())
     return con
 
 
@@ -119,11 +125,47 @@ CORRUPTIONS = {
         "UPDATE fact_price SET price_eur_per_mwh = 9999 "
         "WHERE date_utc = (SELECT MIN(date_utc) FROM fact_price)"
     ),
+    "fact_generation: no production type out-produces the highest load ever recorded": (
+        "UPDATE fact_generation SET power_mw = "
+        "(SELECT MAX(load_mw) FROM fact_load) + 1 WHERE psr_type = 'B04'"
+    ),
     "fact_generation: direction is only 'in' or 'out'": (
         "UPDATE fact_generation SET direction = 'sideways' WHERE direction = 'in'"
     ),
     "fact_generation: every production type is in the dimension": (
         "UPDATE fact_generation SET psr_type = 'B99' WHERE psr_type = 'B16'"
+    ),
+    "table_h_price_load: one row per hour, never two": (
+        "INSERT INTO table_h_price_load SELECT * FROM table_h_price_load LIMIT 1"
+    ),
+    "table_h_price_load: the two event flags are disjoint": (
+        "UPDATE table_h_price_load SET price_neg = TRUE, extreme_price = TRUE "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_h_price_load)"
+    ),
+    "table_composition: shares sum to one in every hour": (
+        "UPDATE table_composition SET share_h = share_h / 2 "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_composition)"
+    ),
+    "table_composition: one row per hour per production type": (
+        "INSERT INTO table_composition SELECT * FROM table_composition LIMIT 1"
+    ),
+    "b20_thermal_table: one row per Amsterdam local day": (
+        "INSERT INTO b20_thermal_table SELECT * FROM b20_thermal_table LIMIT 1"
+    ),
+    "table_h_price_post: every row is a row of the hourly table": (
+        "DELETE FROM table_h_price_load "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_h_price_post)"
+    ),
+    "table_h_price_post: nothing before the boundary it is defined by": (
+        "INSERT INTO table_h_price_post "
+        "SELECT * REPLACE (DATE '2022-01-01' AS date_ams) FROM table_h_price_post LIMIT 1"
+    ),
+    "table_price_unit: every published price appears exactly once": (
+        "INSERT INTO table_price_unit SELECT * FROM table_price_unit LIMIT 1"
+    ),
+    "table_price_unit: each local day is priced whole, at one known resolution": (
+        "UPDATE table_price_unit SET unit_minutes = 60 "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_price_unit)"
     ),
     "fact tables: every hour used is an hour dim_time holds": (
         "INSERT INTO fact_load (date_utc, load_mw) "

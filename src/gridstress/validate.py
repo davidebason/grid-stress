@@ -6,12 +6,20 @@ check and raises once with all the failures rather than stopping at the first, b
 that breaks one invariant usually breaks several and seeing them together says more.
 
 The rules come from DATA.md: the bounds SDAC applies to a clearing price, the directions an A75
-series can carry, the production type code list, and the hours an Amsterdam local day has. None
-of them is a property of the current data; they are properties the data must keep having after a
-refetch, a parser change or a fourth dataset.
+series can carry, the production type code list, and the hours an Amsterdam local day has. The
+upper bound on generation is the one rule with no published source behind it, so it is set by the
+data itself: a single production type cannot plausibly out-produce the highest load the country
+ever recorded, and the bound moves with the load table rather than sitting as a constant. That
+rule no longer discovers anything, because `load.py` deletes the rows breaking it before calling
+this module; it stays so the deletion is confirmed rather than assumed, and so the bound is
+written down beside the other eleven rules. None of them is a property of the current data;
+they are properties the data must keep having after a refetch, a parser change or a fourth
+dataset.
 
-`load.py` calls this inside its transaction, so a failure rolls the whole load back and leaves
-the previous database untouched.
+`load.py` calls this inside its transaction, after the derived tables are built, so a failure
+rolls the whole load back and leaves the previous database untouched. The checks therefore cover
+both what the API sent and what was derived from it: a derived table that disagrees with the
+facts beneath it never reaches the file.
 """
 
 import duckdb
@@ -53,6 +61,10 @@ CHECKS = {
                   ELSE {FLOOR_BEFORE}
               END
     """,
+    "fact_generation: no production type out-produces the highest load ever recorded": """
+        SELECT date_utc, psr_type, direction, power_mw FROM fact_generation
+        WHERE power_mw > (SELECT MAX(load_mw) FROM fact_load)
+    """,
     "fact_generation: direction is only 'in' or 'out'": """
         SELECT DISTINCT direction FROM fact_generation WHERE direction NOT IN ('in', 'out')
     """,
@@ -60,6 +72,49 @@ CHECKS = {
         SELECT DISTINCT f.psr_type FROM fact_generation f
         LEFT JOIN dim_production_type d USING (psr_type)
         WHERE d.psr_type IS NULL
+    """,
+    "table_h_price_load: one row per hour, never two": """
+        SELECT date_utc FROM table_h_price_load GROUP BY date_utc HAVING COUNT(*) <> 1
+    """,
+    "table_h_price_load: the two event flags are disjoint": """
+        SELECT date_utc FROM table_h_price_load WHERE price_neg AND extreme_price
+    """,
+    "table_composition: shares sum to one in every hour": """
+        SELECT date_utc, ROUND(SUM(share_h), 6) AS total
+        FROM table_composition GROUP BY date_utc HAVING ROUND(SUM(share_h), 6) <> 1.0
+    """,
+    "table_composition: one row per hour per production type": """
+        SELECT date_utc, psr_type FROM table_composition
+        GROUP BY date_utc, psr_type HAVING COUNT(*) <> 1
+    """,
+    "b20_thermal_table: one row per Amsterdam local day": """
+        SELECT date_ams FROM b20_thermal_table GROUP BY date_ams HAVING COUNT(*) <> 1
+    """,
+    "table_h_price_post: every row is a row of the hourly table": """
+        SELECT p.date_utc FROM table_h_price_post p
+        LEFT JOIN table_h_price_load h USING (date_utc)
+        WHERE h.date_utc IS NULL
+    """,
+    "table_h_price_post: nothing before the boundary it is defined by": """
+        SELECT date_ams FROM table_h_price_post WHERE date_ams < DATE '2023-03-01'
+    """,
+    "table_price_unit: every published price appears exactly once": """
+        SELECT f.date_utc FROM fact_price f
+        LEFT JOIN (
+            SELECT date_utc, COUNT(*) AS copies FROM table_price_unit GROUP BY date_utc
+        ) t USING (date_utc)
+        WHERE t.copies IS DISTINCT FROM 1
+    """,
+    "table_price_unit: each local day is priced whole, at one known resolution": """
+        SELECT date_ams, COUNT(*) AS units FROM table_price_unit
+        GROUP BY date_ams
+        HAVING BOOL_OR(unit_minutes IS NULL)
+            OR COUNT(DISTINCT unit_minutes) <> 1
+            OR COUNT(*) * MIN(unit_minutes) <> 60 * date_diff(
+                'hour',
+                CAST(date_ams AS TIMESTAMP) AT TIME ZONE 'Europe/Amsterdam',
+                CAST(date_ams + INTERVAL 1 DAY AS TIMESTAMP) AT TIME ZONE 'Europe/Amsterdam'
+            )
     """,
     "fact tables: every hour used is an hour dim_time holds": """
         SELECT h FROM (

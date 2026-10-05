@@ -1,3 +1,5 @@
+-- Run by `python -m gridstress.load`, before any response is inserted.
+--
 -- The project range, as Amsterdam local midnights expressed in UTC: the local days 2021-01-01 to
 -- 2026-08-31, matching RANGE_BEGIN and RANGE_END in src/gridstress/fetch.py. generate_series
 -- includes both endpoints, so the last row is the last hour that BEGINS inside the range,

@@ -7,7 +7,7 @@ points in a day says nothing about its resolution and the resolution element is 
 
 Run from the repository root:
 
-    python analysis/01_price_resolution.py
+    python evidence/01_price_resolution.py
 
 Regenerates the figures quoted under "The resolution of each dataset" in DATA.md.
 """

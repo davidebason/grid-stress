@@ -1,0 +1,155 @@
+-- Q1_NEG_EXT. How often are prices negative or extreme, and when.
+--
+-- Measurables: negative hour, extreme hour, deepest price in the hour, hourly price.
+-- Reads: table_h_price_load.
+-- Never the fact tables: the grain was fixed in sql/04_hourly_tables.sql.
+--
+--     duckdb -readonly data/processed/grid.duckdb -c ".read analysis/01_negative_and_extreme.sql"
+
+SET TimeZone = 'UTC';
+
+-- ---------------------------------------------------------------------------------------------
+-- One statement per granularity. Counts alone are not comparable across granularities because the
+-- groups are different sizes -- 172 hours in a G_HOUR_MONTH group against 7,094 in a G_DOW one --
+-- so each count is reported beside its share of the group. The bars are drawn on the share, one
+-- character per percentage point, so a bar of the same length means the same thing in every
+-- statement below and its length can be read as the number.
+--
+-- price_bar is drawn from 60 EUR/MWh rather than from zero, one character per 5 above it. The
+-- median hourly price never falls below 69 or rises above 132 at any granularity, so a bar from
+-- zero would spend seven of its thirteen characters on ground every group shares: at G_DOW it
+-- varied by a single character across the whole week. The baseline is fixed rather than fitted
+-- per statement, so these bars stay comparable between statements like the other two.
+--
+-- Ordered by the grouping key, not by the counts: only one column can control the row order, and
+-- ordering by a count leaves every other column shapeless. The largest group is still visible as
+-- the longest bar.
+--
+-- Hourly price is reported as the median of the group, not the mean: the 2021-2022 price level
+-- drags every mean up, by 6 EUR/MWh on Sunday and 26 on Tuesday, so the two rank the days
+-- differently over the whole range.
+--
+-- Deepest price in the hour is reported as the 5th percentile of the group, not its median and
+-- not its minimum. A median returns what the hourly price already said, the two columns holding
+-- the same number in 83.8% of hours because one published price per hour makes min, mean and max
+-- identical before 2025-10-01. A minimum is one observation and does not improve with group
+-- size: at G_HOUR it tracks the midday block where negatives happen, but at G_DOW it is one
+-- print in 7,094 and reads Friday -499.6 against Tuesday -79.2, with no trace of the weekend
+-- pattern every other column shows. The 5th percentile keeps that pattern at both.
+-- ---------------------------------------------------------------------------------------------
+
+-- G_HOUR: hour of day within the dataset. 24 groups, about 2,069 hours in each.
+-- Expected rows: 24.
+SELECT
+    hour_date,
+    COUNT(*)                                          AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                 AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*), 2) AS neg_pct,
+    COUNT(*) FILTER (WHERE extreme_price)             AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2) AS ext_pct,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price), 2) AS med_h_p,
+    ROUND(PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY min_price), 2) AS p05_deep,
+    repeat('#', CAST(200.0 * COUNT(*) FILTER (WHERE price_neg)     / (2*COUNT(*)) AS INT)) AS neg_bar,
+    repeat('.', CAST(200.0 * COUNT(*) FILTER (WHERE extreme_price) / (2*COUNT(*)) AS INT)) AS ext_bar,
+    repeat('+', CAST(GREATEST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price) - 60, 0)
+                     / 5 AS INT)) AS price_bar
+FROM table_h_price_load
+GROUP BY hour_date
+ORDER BY hour_date
+;
+
+-- G_DOW: day of week within the dataset. 7 groups, about 7,094 hours in each.
+-- Expected rows: 7.
+SELECT
+    day_of_week,
+    COUNT(*)                                          AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                 AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*), 2) AS neg_pct,
+    COUNT(*) FILTER (WHERE extreme_price)             AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2) AS ext_pct,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price), 2) AS med_h_p,
+    ROUND(PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY min_price), 2) AS p05_deep,
+    repeat('#', CAST(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*) AS INT)) AS neg_bar,
+    repeat('.', CAST(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*) AS INT)) AS ext_bar,
+    repeat('+', CAST(GREATEST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price) - 60, 0)
+                     / 5 AS INT)) AS price_bar
+FROM table_h_price_load
+GROUP BY day_of_week
+ORDER BY day_of_week
+;
+
+-- G_MONTH: month within the dataset. 12 groups, about 4,138 hours in each.
+-- Expected rows: 12.
+SELECT
+    month_date,
+    COUNT(*)                                          AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                 AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*), 2) AS neg_pct,
+    COUNT(*) FILTER (WHERE extreme_price)             AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2) AS ext_pct,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price), 2) AS med_h_p,
+    ROUND(PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY min_price), 2) AS p05_deep,
+    repeat('#', CAST(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*) AS INT)) AS neg_bar,
+    repeat('.', CAST(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*) AS INT)) AS ext_bar,
+    repeat('+', CAST(GREATEST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price) - 60, 0)
+                     / 5 AS INT)) AS price_bar
+FROM table_h_price_load
+GROUP BY month_date
+ORDER BY month_date
+;
+
+-- G_YEAR: year within the dataset. 6 groups, about 8,712 hours in each.
+-- Expected rows: 6.
+SELECT
+    year_date,
+    COUNT(*)                                          AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                 AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*), 2) AS neg_pct,
+    COUNT(*) FILTER (WHERE extreme_price)             AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2) AS ext_pct,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price), 2) AS med_h_p,
+    ROUND(PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY min_price), 2) AS p05_deep,
+    repeat('#', CAST(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*) AS INT)) AS neg_bar,
+    repeat('.', CAST(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*) AS INT)) AS ext_bar,
+    repeat('+', CAST(GREATEST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price) - 60, 0)
+                     / 5 AS INT)) AS price_bar
+FROM table_h_price_load
+GROUP BY year_date
+ORDER BY year_date
+;
+
+-- G_MONTH_YEAR: month within year. 68 groups, about 730 hours in each. No bars: at 68 rows
+-- there is no glance to take one in, and the notebook draws this one as a heatmap.
+-- Expected rows: 68.
+SELECT
+    year_date, month_date,
+    COUNT(*)                                          AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                 AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*), 2) AS neg_pct,
+    COUNT(*) FILTER (WHERE extreme_price)             AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2) AS ext_pct,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price), 2) AS med_h_p,
+    ROUND(PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY min_price), 2) AS p05_deep
+FROM table_h_price_load
+GROUP BY year_date, month_date
+ORDER BY year_date, month_date
+;
+
+-- G_HOUR_MONTH: hour within month. 288 groups, about 172 hours in each. No bars, as above.
+-- Expected rows: 288.
+SELECT
+    month_date, hour_date,
+    COUNT(*)                                          AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                 AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg)     / COUNT(*), 2) AS neg_pct,
+    COUNT(*) FILTER (WHERE extreme_price)             AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2) AS ext_pct,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY avg_h_price), 2) AS med_h_p,
+    ROUND(PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY min_price), 2) AS p05_deep
+FROM table_h_price_load
+GROUP BY month_date, hour_date
+ORDER BY month_date, hour_date
+;
+
+-----------------------------------------------------------
+    
