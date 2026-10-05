@@ -1,4 +1,4 @@
--- Q5_GAIN. What a consumer saves by choosing when to buy.
+-- Q4_GAIN. What a consumer saves by choosing when to buy.
 --
 -- Measurables: daily price spread, spread inside the hour, load.
 -- Reads: table_h_price_load, b20_thermal_table.
@@ -14,7 +14,7 @@
 -- same number. The expected row count sits above each statement, so a statement that has
 -- silently lost most of its data says so.
 --
---     duckdb -readonly data/processed/grid.duckdb -c ".read analysis/05_shifting_gain.sql"
+--     duckdb -readonly data/processed/grid.duckdb -c ".read analysis/04_shifting_gain.sql"
 
 SET TimeZone = 'UTC';
 
