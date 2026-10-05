@@ -112,7 +112,7 @@ thermal_table AS (
     WHERE psr_type = 'B04' OR psr_type = 'B05'
     GROUP BY date_ams
 )
-SELECT 
+SELECT
     b.date_ams,
     day_of_week,
     month_date,
