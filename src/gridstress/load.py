@@ -6,9 +6,10 @@ carries the four provenance columns, so any figure can be traced back to the fil
 and the day that file was fetched.
 
 The modelling lives in sql/, not here: the first three files declare the grain, the keys and
-the dimensions before anything is inserted, and the last two derive the hourly, by-type and
-daily tables the analysis is asked over once the facts are in. This module decides nothing; it
-runs those files in order and moves parsed rows between them. See DATA.md for the reasoning.
+the dimensions before anything is inserted, and the rest derive the hourly, by-type, daily and
+per-market-time-unit tables the analysis is asked over once the facts are in. This module
+decides nothing; it runs those files in order and moves parsed rows between them. See DATA.md
+for the reasoning.
 
 Everything happens in one transaction, so a run that fails leaves the previous database intact,
 and validate() sees the derived tables as well as the facts before anything is committed.
@@ -44,6 +45,7 @@ SQL_SCHEMA = (
 SQL_DERIVED = (
     "04_hourly_tables.sql",
     "05_post_crisis.sql",
+    "06_price_units.sql",
 )
 
 DICT_SQL = {
@@ -180,6 +182,7 @@ def main() -> None:
             "table_composition",
             "b20_thermal_table",
             "table_h_price_post",
+            "table_price_unit",
         ):
             rows = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             logger.info("rows in %s: %s", table, f"{rows:,}")

@@ -160,6 +160,13 @@ CORRUPTIONS = {
         "INSERT INTO table_h_price_post "
         "SELECT * REPLACE (DATE '2022-01-01' AS date_ams) FROM table_h_price_post LIMIT 1"
     ),
+    "table_price_unit: every published price appears exactly once": (
+        "INSERT INTO table_price_unit SELECT * FROM table_price_unit LIMIT 1"
+    ),
+    "table_price_unit: each local day is priced whole, at one known resolution": (
+        "UPDATE table_price_unit SET unit_minutes = 60 "
+        "WHERE date_utc = (SELECT MIN(date_utc) FROM table_price_unit)"
+    ),
     "fact tables: every hour used is an hour dim_time holds": (
         "INSERT INTO fact_load (date_utc, load_mw) "
         "VALUES (TIMESTAMPTZ '2019-01-01 00:00:00+00', 1.0)"

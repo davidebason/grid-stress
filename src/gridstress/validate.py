@@ -98,6 +98,24 @@ CHECKS = {
     "table_h_price_post: nothing before the boundary it is defined by": """
         SELECT date_ams FROM table_h_price_post WHERE date_ams < DATE '2023-03-01'
     """,
+    "table_price_unit: every published price appears exactly once": """
+        SELECT f.date_utc FROM fact_price f
+        LEFT JOIN (
+            SELECT date_utc, COUNT(*) AS copies FROM table_price_unit GROUP BY date_utc
+        ) t USING (date_utc)
+        WHERE t.copies IS DISTINCT FROM 1
+    """,
+    "table_price_unit: each local day is priced whole, at one known resolution": """
+        SELECT date_ams, COUNT(*) AS units FROM table_price_unit
+        GROUP BY date_ams
+        HAVING BOOL_OR(unit_minutes IS NULL)
+            OR COUNT(DISTINCT unit_minutes) <> 1
+            OR COUNT(*) * MIN(unit_minutes) <> 60 * date_diff(
+                'hour',
+                CAST(date_ams AS TIMESTAMP) AT TIME ZONE 'Europe/Amsterdam',
+                CAST(date_ams + INTERVAL 1 DAY AS TIMESTAMP) AT TIME ZONE 'Europe/Amsterdam'
+            )
+    """,
     "fact tables: every hour used is an hour dim_time holds": """
         SELECT h FROM (
             SELECT DISTINCT date_trunc('hour', date_utc) AS h FROM fact_load
