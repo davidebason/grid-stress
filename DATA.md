@@ -2,6 +2,34 @@
 
 Every source, unit and cleaning decision, recorded as it is made.
 
+## Contents
+
+- [Sources](#sources)
+  - [ENTSO-E Transparency Platform](#entso-e-transparency-platform)
+    - [Access](#access)
+    - [Requests](#requests)
+    - [What load, generation and consumption are](#what-load-generation-and-consumption-are)
+    - [How the API treats the requested window](#how-the-api-treats-the-requested-window)
+    - [The resolution of each dataset, and when the price resolution changed](#the-resolution-of-each-dataset-and-when-the-price-resolution-changed)
+    - [What the generation figures count, and how they are computed](#what-the-generation-figures-count-and-how-they-are-computed)
+    - [Day-ahead prices have a floor and a ceiling, and the floor moved](#day-ahead-prices-have-a-floor-and-a-ceiling-and-the-floor-moved)
+    - [What a generation response contains](#what-a-generation-response-contains)
+    - [API errors](#api-errors)
+- [What the data can and cannot support](#what-the-data-can-and-cannot-support)
+  - [What TenneT publishes per production type, and what it does not](#what-tennet-publishes-per-production-type-and-what-it-does-not)
+  - [Grid congestion is context, not a measured quantity](#grid-congestion-is-context-not-a-measured-quantity)
+  - [The 2021 and 2022 price level is a gas-market event, and does not compare with the rest of the range](#the-2021-and-2022-price-level-is-a-gas-market-event-and-does-not-compare-with-the-rest-of-the-range)
+  - [Negative hours rise across the range, and this source cannot attribute the rise](#negative-hours-rise-across-the-range-and-this-source-cannot-attribute-the-rise)
+- [Decisions](#decisions)
+  - [Timestamps stay in UTC until the time dimension](#timestamps-stay-in-utc-until-the-time-dimension)
+  - [Facts are stored at the source's resolution, and the analysis grain is the hour](#facts-are-stored-at-the-sources-resolution-and-the-analysis-grain-is-the-hour)
+  - [Price is rolled up to the hour before it is profiled](#price-is-rolled-up-to-the-hour-before-it-is-profiled)
+  - [Power is averaged over time and summed over production types, and energy is one multiplication away](#power-is-averaged-over-time-and-summed-over-production-types-and-energy-is-one-multiplication-away)
+  - [A negative hour and an extreme hour are two separate flags, and the extreme bar is fixed at 225.00 EUR/MWh](#a-negative-hour-and-an-extreme-hour-are-two-separate-flags-and-the-extreme-bar-is-fixed-at-22500-eurmwh)
+  - [Production types stay as ENTSO-E codes in the parser](#production-types-stay-as-entso-e-codes-in-the-parser)
+  - [Seven generation values are impossible, and are dropped rather than corrected](#seven-generation-values-are-impossible-and-are-dropped-rather-than-corrected)
+- [What the database holds](#what-the-database-holds)
+
 ## Sources
 
 ### ENTSO-E Transparency Platform
@@ -132,20 +160,6 @@ Wind and solar generation (article 16.1.c, page 75) is merged into the same data
 
 **What is still not established:** whether the Dutch data provider includes behind-the-meter rooftop solar in these figures, and if so by what estimate. The documents read set no rule either way, which means the solar figure cannot be assumed to be all Dutch solar production. Any statement about solar share carries that qualification until it is settled with the data provider.
 
-#### What TenneT publishes per production type, and what it does not
-
-TenneT states, on the ENTSO-E page for this dataset: *"TenneT NL: The publication represents the generation identifiable per fuel type, if not identifiable the data is published as 'others' or not published."* Two things follow, and both bound what any figure on this page can mean.
-
-**`B20 Other` is not a fuel.** It is the residue of output whose fuel TenneT could not determine, and for the Netherlands it is the largest single component of published generation: 4,046 MW mean and 15,943 MW at its highest hour, larger than fossil gas on both counts. Its behaviour separates into two parts that move in opposite seasons. Its daily swing, the day's maximum minus its minimum, runs 2,554 MW in December and 8,262 MW in June, which is the shape of sunlight. Its daily floor runs the other way, 2,199 MW in January and 1,034 MW in August, which is the shape of a heating season. Neither part can be attributed to a named fuel from this source; both can be measured as behaviour.
-
-**`B16 Solar` is therefore not Dutch solar output.** It is the part that is identifiable, meaning transmission-connected plant: 428 MW at its highest hour across the whole range, and flat at 47 to 67 MW of mean output from 2021 to 2026, a period over which installed Dutch solar capacity roughly doubled. Any renewable share computed from `B16` understates solar by more than an order of magnitude.
-
-**And "or not published" means summed generation is not total generation.** Every share whose denominator is `SUM(power_mw)` is a share of *published* generation, not of what the Netherlands generated.
-
-**Eleven quarter-hours of `B20` are not physical, and all of them fall in 2023.** They run from 18,471 to 28,237 MW, and seven of them exceed the highest load the Netherlands recorded in the whole range, 20,718 MW. A single production type cannot out-produce national demand by 36%. No other year contains a value above 16,000 MW. They are listed by `evidence/04_generation_identifiability.sql`. Those seven are deleted by the loader, for the reasons under Seven generation values are impossible below; the remaining four are still in the data, so any statistic over `B20` that uses a maximum rather than a median still inherits them.
-
-**Risk accepted.** The renewable share, and residual load defined as `load − solar − wind`, cannot be computed from this source. Bounding them by excluding and then including `B20` gives a renewable share of 17.8% or 48.8% and a residual load of 10,399 MW or 6,353 MW, a range too wide for either to carry a conclusion. Any question needing those quantities is answered from a different measurable or is not answered here. The figures in this section regenerate from `evidence/04_generation_identifiability.sql`.
-
 #### Day-ahead prices have a floor and a ceiling, and the floor moved
 
 Day-ahead prices are not free to take any value. Single Day-Ahead Coupling (SDAC), the mechanism that clears the coupled European day-ahead markets including the Netherlands, applies a harmonised minimum and maximum clearing price, set under the Harmonised Maximum and Minimum Clearing Prices methodology, itself established under Article 41(1) of [Commission Regulation (EU) 2015/1222](https://www.legislation.gov.uk/eur/2015/1222/contents/adopted) (the CACM Regulation).
@@ -258,9 +272,31 @@ What one request can come back as, and what the client does about it. For every 
 
 **Never printed.** The token travels as the `securityToken` query parameter, so it is part of every request URL. The client prints only the class name of an exception, never `str(err)`, `repr(err)`, `err.request.url` or `response.url`, each of which contains the token.
 
-## What the range itself contains
+## What the data can and cannot support
 
-Two properties of this particular five and a half years, rather than of the datasets. Both are established by `evidence/06_price_regimes.sql`.
+What the data turned out to show about its own limits, as distinct from how it was fetched, under Sources, and what was decided about it, under Decisions. The first two are properties of the datasets: what TenneT does not publish, and what no market dataset measures. The last two are properties of this particular five and a half years, both established by `evidence/06_price_regimes.sql`. Reorganised on 2026-10-05; the section was *What the range itself contains*, and the first two subsections sat under Sources and Decisions.
+
+### What TenneT publishes per production type, and what it does not
+
+TenneT states, on the ENTSO-E page for this dataset: *"TenneT NL: The publication represents the generation identifiable per fuel type, if not identifiable the data is published as 'others' or not published."* Two things follow, and both bound what any figure on this page can mean.
+
+**`B20 Other` is not a fuel.** It is the residue of output whose fuel TenneT could not determine, and for the Netherlands it is the largest single component of published generation: 4,046 MW mean and 15,943 MW at its highest hour, larger than fossil gas on both counts. Its behaviour separates into two parts that move in opposite seasons. Its daily swing, the day's maximum minus its minimum, runs 2,554 MW in December and 8,262 MW in June, which is the shape of sunlight. Its daily floor runs the other way, 2,199 MW in January and 1,034 MW in August, which is the shape of a heating season. Neither part can be attributed to a named fuel from this source; both can be measured as behaviour.
+
+**`B16 Solar` is therefore not Dutch solar output.** It is the part that is identifiable, meaning transmission-connected plant: 428 MW at its highest hour across the whole range, and flat at 47 to 67 MW of mean output from 2021 to 2026, a period over which installed Dutch solar capacity roughly doubled. Any renewable share computed from `B16` understates solar by more than an order of magnitude.
+
+**And "or not published" means summed generation is not total generation.** Every share whose denominator is `SUM(power_mw)` is a share of *published* generation, not of what the Netherlands generated.
+
+**Eleven quarter-hours of `B20` are not physical, and all of them fall in 2023.** They run from 18,471 to 28,237 MW, and seven of them exceed the highest load the Netherlands recorded in the whole range, 20,718 MW. A single production type cannot out-produce national demand by 36%. No other year contains a value above 16,000 MW. They are listed by `evidence/04_generation_identifiability.sql`. Those seven are deleted by the loader, for the reasons under Seven generation values are impossible below; the remaining four are still in the data, so any statistic over `B20` that uses a maximum rather than a median still inherits them.
+
+**Risk accepted.** The renewable share, and residual load defined as `load − solar − wind`, cannot be computed from this source. Bounding them by excluding and then including `B20` gives a renewable share of 17.8% or 48.8% and a residual load of 10,399 MW or 6,353 MW, a range too wide for either to carry a conclusion. Any question needing those quantities is answered from a different measurable or is not answered here. The figures in this section regenerate from `evidence/04_generation_identifiability.sql`.
+
+### Grid congestion is context, not a measured quantity
+
+**Decision.** This analysis does not measure grid congestion. Load, generation per production type and day-ahead prices describe the market in the bidding zone as a whole, and are used to study when prices are negative or extreme and what is being produced and consumed at those times. Congestion appears in the framing, as the reason flexibility has value, and in the caveats, never as a result.
+
+**Reasoning.** The Netherlands is a single bidding zone: every participant clears at the same day-ahead price, whatever the physical grid inside the zone can carry, so the price cannot express a local limit by construction. Congestion happens on particular lines, substations and regional grids, and all three datasets used here are national totals with no location in them. What would measure it is published elsewhere under the same Transparency Regulation, in [Article 13](https://www.legislation.gov.uk/eur/2013/543/article/13/adopted), "Information relating to congestion management measures": redispatching per market time unit with the network elements concerned, countertrading, and the monthly cost of both. Those are separate datasets with their own document types and grains, the monthly costs cannot sit at an hourly grain at all, and they cover transmission actions rather than the regional grids where Dutch connection queues are longest.
+
+**Risk accepted.** A reader looking for when and where the Dutch grid is congested will not find it here. Nothing in this analysis separates an hour of national oversupply from an hour when a particular region could not export what it generated, and no claim in the report may attribute a price to a local grid limit.
 
 ### The 2021 and 2022 price level is a gas-market event, and does not compare with the rest of the range
 
@@ -336,14 +372,6 @@ The roll-up is not the chained aggregation this project avoids elsewhere. That h
 
 **Risk accepted.** A fixed bar distributes unevenly, and here it lands almost entirely in one year: of 4,956 extreme hours, 4,055 are in 2022 and 641 in 2021, leaving between 47 and 80 in each of 2023 to 2026. That is a real property of the range, since the 2022 gas crisis genuinely produced those prices, but it means any statistic over extreme hours in a later year rests on a few dozen observations and has to be reported with its count beside it. The figures in this section, the bar and the distribution of the hours it selects, regenerate from `evidence/05_extreme_price.sql`. The negative side carries the separate caveat recorded under Day-ahead prices have a floor and a ceiling: the floor moved from −500 to −600 on 29 May 2026, so the depth of the negative tail is not comparable across that date, although the count of negative hours is unaffected because the flag is a sign test rather than a magnitude.
 
-### Grid congestion is context, not a measured quantity
-
-**Decision.** This analysis does not measure grid congestion. Load, generation per production type and day-ahead prices describe the market in the bidding zone as a whole, and are used to study when prices are negative or extreme and what is being produced and consumed at those times. Congestion appears in the framing, as the reason flexibility has value, and in the caveats, never as a result.
-
-**Reasoning.** The Netherlands is a single bidding zone: every participant clears at the same day-ahead price, whatever the physical grid inside the zone can carry, so the price cannot express a local limit by construction. Congestion happens on particular lines, substations and regional grids, and all three datasets used here are national totals with no location in them. What would measure it is published elsewhere under the same Transparency Regulation, in [Article 13](https://www.legislation.gov.uk/eur/2013/543/article/13/adopted), "Information relating to congestion management measures": redispatching per market time unit with the network elements concerned, countertrading, and the monthly cost of both. Those are separate datasets with their own document types and grains, the monthly costs cannot sit at an hourly grain at all, and they cover transmission actions rather than the regional grids where Dutch connection queues are longest.
-
-**Risk accepted.** A reader looking for when and where the Dutch grid is congested will not find it here. Nothing in this analysis separates an hour of national oversupply from an hour when a particular region could not export what it generated, and no claim in the report may attribute a price to a local grid limit.
-
 ### Production types stay as ENTSO-E codes in the parser
 
 **Decision.** The parser labels each generation and consumption series with its `psrType` code exactly as it appears in the document, such as `B18`, and does not translate codes into names such as Wind Offshore. The code-to-name table is kept in this file, under What a generation response contains.
@@ -362,7 +390,7 @@ The roll-up is not the chained aggregation this project avoids elsewhere. That h
 
 ## What the database holds
 
-Built by `python -m gridstress.load`, which runs every file in `sql/` and inserts every response in `data/raw/` inside a single transaction: the first three declare the tables, the responses go in, the impossible generation values come out, the remaining three derive the analysis tables, and `validate.py` sees all of it before anything is committed. Built on 2026-09-29 from the responses fetched on 2026-09-20.
+Built by `python -m gridstress.load`, which runs every file in `sql/` and inserts every response in `data/raw/` inside a single transaction: the first three declare the tables, the responses go in, the impossible generation values come out, the remaining three derive the analysis tables, and `validate.py` sees all of it before anything is committed. Built on 2026-10-05 from the responses fetched on 2026-09-20.
 
 The actual counts are logged by the loader as it commits, so they come from the code that produced the tables. The expected counts come from `evidence/02_expected_row_counts.py`, which derives them from the fetch range and the documents' own metadata without opening the database.
 
