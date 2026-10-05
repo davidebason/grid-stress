@@ -158,3 +158,238 @@ SELECT
 FROM year_pre pre FULL OUTER JOIN year_post post ON pre.year_date = post.year_date
 ORDER BY year_date
 ;
+
+
+-- ============================================================================================
+-- Grain or period. The before-and-after comparison sets 335 quarter-hourly days against 1,734
+-- hourly ones, so its change column holds the finer grain AND everything else that differs
+-- between the periods: the years, the price level, the particular months. Measuring the 335
+-- post-change days at hourly grain as well, each hour being the mean of its four quarters,
+-- separates the two, since the same day at two grains differs only in the grain.
+-- ============================================================================================
+
+-- The post-change quarter-hours, each with the UTC hour it belongs to. The hour is keyed on
+-- hour_utc, not hour_date: on the autumn clock-change day the local hour 02 occurs twice, and
+-- grouping on hour_date would merge two hours into one of eight quarters. Expected rows: 32,160.
+CREATE OR REPLACE TEMP TABLE qh AS
+SELECT
+    date_utc,
+    date_trunc('hour', date_utc) AS hour_utc,
+    date_ams,
+    hour_date,
+    isodow(date_ams) AS dow_num,
+    day_of_week,
+    month_date,
+    price_eur_per_mwh AS price
+FROM table_price_unit
+WHERE unit_minutes = 15
+;
+
+-- The same days at hourly grain. Expected rows: 8,040.
+CREATE OR REPLACE TEMP TABLE qh_hour AS
+SELECT
+    hour_utc,
+    date_ams,
+    hour_date,
+    dow_num,
+    day_of_week,
+    month_date,
+    AVG(price) AS price_h
+FROM qh
+GROUP BY hour_utc, date_ams, hour_date, dow_num, day_of_week, month_date
+;
+
+-- One row per post-change day, both grains side by side. Expected rows: 335.
+CREATE OR REPLACE TEMP TABLE qh_day AS
+WITH q AS (
+    SELECT
+        date_ams, dow_num, day_of_week, month_date,
+        MAX(price)                                            AS max_q,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price)    AS med_q
+    FROM qh
+    GROUP BY date_ams, dow_num, day_of_week, month_date
+),
+h AS (
+    SELECT
+        date_ams,
+        MAX(price_h)                                          AS max_h,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_h)  AS med_h
+    FROM qh_hour
+    GROUP BY date_ams
+)
+SELECT
+    q.*,
+    h.max_h,
+    h.med_h
+FROM q JOIN h ON q.date_ams = h.date_ams
+;
+
+-- The decomposition: three numbers per group, and the comparison's change split into two parts
+-- that add up exactly:
+--     change = (after at quarter-hour - after at hourly) + (after at hourly - before)
+--            =  grain                                    +  period
+-- The period part compares like with like, hourly against hourly, so it is the only figure in
+-- this file that says whether the market itself offered a wider daily spread after the switch.
+-- Each part is a difference between group medians, so the three columns add up exactly.
+-- Expected rows: 7, then 11. No G_YEAR: the post-change period holds 92 days of 2025, all
+-- October to December, and 243 of 2026, January to August, so a year row would compare seasons.
+WITH pre AS (
+    SELECT dow_num, day_of_week,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spread_day) AS before_hourly
+    FROM pre_change GROUP BY dow_num, day_of_week
+),
+post AS (
+    SELECT dow_num,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY max_h - med_h) AS after_hourly,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY max_q - med_q) AS after_quarter
+    FROM qh_day GROUP BY dow_num
+)
+SELECT
+    pre.day_of_week,
+    pre.before_hourly,
+    post.after_hourly,
+    post.after_quarter,
+    post.after_hourly - pre.before_hourly  AS period,
+    post.after_quarter - post.after_hourly AS grain,
+    post.after_quarter - pre.before_hourly AS change
+FROM pre JOIN post ON pre.dow_num = post.dow_num
+ORDER BY pre.dow_num
+;
+
+WITH pre AS (
+    SELECT month_date,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spread_day) AS before_hourly
+    FROM pre_change GROUP BY month_date
+),
+post AS (
+    SELECT month_date,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY max_h - med_h) AS after_hourly,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY max_q - med_q) AS after_quarter
+    FROM qh_day GROUP BY month_date
+)
+SELECT
+    pre.month_date,
+    pre.before_hourly,
+    post.after_hourly,
+    post.after_quarter,
+    post.after_hourly - pre.before_hourly  AS period,
+    post.after_quarter - post.after_hourly AS grain,
+    post.after_quarter - pre.before_hourly AS change
+FROM pre LEFT JOIN post ON pre.month_date = post.month_date
+ORDER BY pre.month_date
+;
+
+
+-- ============================================================================================
+-- The sensitivity: from EUR per MWh to EUR per year, which is what a client sets against the
+-- cost of the equipment that moves load. Everything is per MW of load the client can move, and
+-- over the same 335 post-change days, so every scenario is measured on the same prices.
+--
+-- Four assumptions, each varied while the others are held:
+--   volume      how many hours a day the flexible MW is moved out of: 1, 2 or 4. The k dearest
+--               units are escaped, so each further hour is worth less than the one before, which
+--               is why volume is varied here rather than multiplied in afterwards.
+--   block size  whole hours, or quarter-hours. At quarter-hour grain k hours are 4k quarters of
+--               0.25 MWh each per MW.
+--   notice      day-ahead: prices are published the afternoon before, so the consumer knows the
+--               day's dearest units and avoids them. None: a fixed schedule chosen in advance,
+--               always avoiding the k hours that were dearest by median before the change,
+--               20:00, 19:00, 21:00 and 18:00 in that order, so the choice uses no hindsight.
+--   midnight    whether moved load may land in the next day. If not, it lands at the day's
+--               median unit; if so, at the median of the day and the next one together.
+--
+-- Fixed throughout, and stated so they are not mistaken for findings: the consumer is too small
+-- to move the price; only the wholesale day-ahead price counts, network charges and taxes being
+-- flat across the day; and the load lands at an ordinary, median unit, not the cheapest one.
+--
+-- EUR per year is the MEAN daily saving times 365, not the median: a year's saving is a total,
+-- and a total is a mean times a count. Every other figure in this file is a median because it
+-- describes a typical day.
+-- ============================================================================================
+
+-- Each day's units ranked from dearest down, at both grains.
+CREATE OR REPLACE TEMP TABLE h_ranked AS
+SELECT
+    h.date_ams, h.hour_date, h.price_h, d.med_h,
+    ROW_NUMBER() OVER (PARTITION BY h.date_ams ORDER BY h.price_h DESC, h.hour_utc) AS rk
+FROM qh_hour h JOIN qh_day d ON h.date_ams = d.date_ams
+;
+
+CREATE OR REPLACE TEMP TABLE q_ranked AS
+SELECT
+    q.date_ams, q.price, d.med_q,
+    ROW_NUMBER() OVER (PARTITION BY q.date_ams ORDER BY q.price DESC, q.date_utc) AS rk
+FROM qh q JOIN qh_day d ON q.date_ams = d.date_ams
+;
+
+-- The landing price when load may cross midnight: the median over the day and the next one. The
+-- last day of the range has no next day and drops out of those two scenarios, so they rest on
+-- 334 days rather than 335.
+CREATE OR REPLACE TEMP TABLE med_two_days AS
+WITH days AS (SELECT DISTINCT date_ams FROM qh_day)
+SELECT
+    d.date_ams,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY h.price_h) AS med2_h,
+    (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY q.price)
+     FROM qh q WHERE q.date_ams IN (d.date_ams, d.date_ams + 1)) AS med2_q
+FROM days d
+JOIN qh_hour h ON h.date_ams IN (d.date_ams, d.date_ams + 1)
+GROUP BY d.date_ams
+HAVING COUNT(DISTINCT h.date_ams) = 2
+;
+
+-- The fixed schedule's hours, ranked by their median hourly price before the change.
+CREATE OR REPLACE TEMP TABLE fixed_hours AS
+SELECT
+    hour_date,
+    ROW_NUMBER() OVER (
+        ORDER BY PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_eur_per_mwh) DESC
+    ) AS fixed_rank
+FROM table_price_unit
+WHERE unit_minutes = 60
+GROUP BY hour_date
+;
+
+-- One row per scenario, day and volume: the EUR saved that day per MW of flexible load.
+CREATE OR REPLACE TEMP TABLE scenario_day AS
+WITH k AS (SELECT * FROM (VALUES (1), (2), (4)) t(k))
+SELECT 1 AS scenario, 'hour' AS block, 'day-ahead' AS notice, 'no' AS crosses_midnight,
+       r.date_ams, k.k, SUM(r.price_h - r.med_h) AS saving
+FROM h_ranked r, k WHERE r.rk <= k.k
+GROUP BY r.date_ams, k.k
+UNION ALL
+SELECT 2, 'quarter', 'day-ahead', 'no',
+       r.date_ams, k.k, 0.25 * SUM(r.price - r.med_q)
+FROM q_ranked r, k WHERE r.rk <= 4 * k.k
+GROUP BY r.date_ams, k.k
+UNION ALL
+SELECT 3, 'hour', 'day-ahead', 'yes',
+       r.date_ams, k.k, SUM(r.price_h - m.med2_h)
+FROM h_ranked r JOIN med_two_days m ON r.date_ams = m.date_ams, k WHERE r.rk <= k.k
+GROUP BY r.date_ams, k.k
+UNION ALL
+SELECT 4, 'quarter', 'day-ahead', 'yes',
+       r.date_ams, k.k, 0.25 * SUM(r.price - m.med2_q)
+FROM q_ranked r JOIN med_two_days m ON r.date_ams = m.date_ams, k WHERE r.rk <= 4 * k.k
+GROUP BY r.date_ams, k.k
+UNION ALL
+SELECT 5, 'hour', 'none, fixed hours', 'no',
+       r.date_ams, k.k, SUM(r.price_h - r.med_h)
+FROM h_ranked r JOIN fixed_hours f ON r.hour_date = f.hour_date, k WHERE f.fixed_rank <= k.k
+GROUP BY r.date_ams, k.k
+;
+
+-- The sensitivity table. eur_per_mwh_1h is the mean saving per MWh moved when one hour a day is
+-- moved; the three annual columns are EUR per MW of flexible load per year.
+-- Expected rows: 5.
+SELECT
+    scenario, block, notice, crosses_midnight,
+    COUNT(DISTINCT date_ams)                                AS days,
+    ROUND(AVG(saving) FILTER (WHERE k = 1), 2)              AS eur_per_mwh_1h,
+    ROUND(365 * AVG(saving) FILTER (WHERE k = 1), -2)       AS eur_per_mw_year_1h,
+    ROUND(365 * AVG(saving) FILTER (WHERE k = 2), -2)       AS eur_per_mw_year_2h,
+    ROUND(365 * AVG(saving) FILTER (WHERE k = 4), -2)       AS eur_per_mw_year_4h
+FROM scenario_day
+GROUP BY scenario, block, notice, crosses_midnight
+ORDER BY scenario
+;
