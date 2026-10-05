@@ -1,8 +1,17 @@
--- Q3_SWING. Within a single day, do the swings in price go with the swings in load and in the
--- B20 daily swing, and on the days where they do not, which days are those.
+-- Q3_SWING. Within a single day, do the swings in price go with the swings in load, in thermal
+-- output and in the B20 daily swing, and with a high B20 daily floor; and on the days where they
+-- do not, which days are those.
 --
--- Measurables: daily extremes, load, B20 daily swing, [extreme hour, from Q1].
--- Reads: table_h_price_load, b20_thermal_table.
+-- Thermal output, B04 gas plus B05 coal, is what still has to be burned once the weather has done
+-- whatever it is doing. It stands in for the renewable share, which this source cannot measure
+-- because TenneT files unidentifiable output under B20, so it is a substitute and not an
+-- equivalent. The B20 swing and floor sit beside it: the part of the unidentifiable bucket that
+-- follows the sun and the part that does not. All three were a separate question until
+-- 2026-10-05, when they were folded in here under the same matching rule and null model.
+--
+-- Measurables: daily extremes, load, thermal output, B20 daily swing, B20 daily floor,
+-- [extreme hour, from Q1].
+-- Reads: table_h_price_load, table_composition, b20_thermal_table.
 -- Never the fact tables: the grain was fixed in sql/04_hourly_tables.sql.
 --
 -- The row is one Amsterdam local day, not one hour. An hour-of-day profile pools 2,069 separate
@@ -12,7 +21,7 @@
 -- The matching rule. Within one month of one year, n is that group's count of extreme-price
 -- days. The n days of largest value are then taken from each other series in the same group,
 -- and the group reports how many of the n coincide. Price sizes the set, so no threshold is
--- picked for load or for B20. The grouping is month-within-year: at G_MONTH the 305 extreme
+-- picked for load, thermal output or either B20 measure. The grouping is month-within-year: at G_MONTH the 305 extreme
 -- days of 2022 would set n for every other year's same month.
 --
 -- One null model, and every probability in the file comes from it. If a series had nothing to
@@ -40,6 +49,12 @@
 --                 487 of the 2,069 days qualify. One extreme hour counts the same as 24.
 --   biggest load  the day's MAX(avg_h_load). The daily mean and the daily swing order the same
 --                 month differently and either would be a different question.
+--   thermal       B04 gas plus B05 coal, summed per hour in mean MW from table_composition, then
+--                 the day's max - min: a swing, as the plan's thermal output row specifies, so it
+--                 ranks the days on which the burned fleet ramped hardest. Not the existing
+--                 day_th_energy_output, which is a sum over the day and so a level of energy.
+--   B20 floor     the day's MIN of B20, as Q2 built it. A level rather than a swing, so the n
+--                 largest are the days the bucket never fell low: its heating-season baseload.
 --   ties          ROW_NUMBER with date_ams as the tiebreak, so a group's top-n is exactly n rows.
 --   naming        days_in_group, never N. DuckDB identifiers are case-insensitive, so AS n and
 --                 AS N are one column, n < N is always false, and every statement returns
@@ -68,6 +83,17 @@ WITH price_day AS (
         MAX(avg_h_load)        AS day_max_load
     FROM table_h_price_load
     GROUP BY date_ams, year_date, month_date
+),
+thermal_hour AS (
+    SELECT date_ams, date_utc, SUM(pw_h_gen) AS th_mw
+    FROM table_composition
+    WHERE psr_type IN ('B04', 'B05')
+    GROUP BY date_ams, date_utc
+),
+thermal_day AS (
+    SELECT date_ams, MAX(th_mw) - MIN(th_mw) AS day_swing_th
+    FROM thermal_hour
+    GROUP BY date_ams
 )
 SELECT
     p.date_ams,
@@ -76,8 +102,12 @@ SELECT
     b.day_of_week,
     p.is_ext_day,
     p.day_max_load,
-    b.pw_swing_day_b20 AS day_swing_b20
-FROM price_day p JOIN b20_thermal_table b ON p.date_ams = b.date_ams
+    t.day_swing_th,
+    b.pw_swing_day_b20 AS day_swing_b20,
+    b.pw_floor_day_b20 AS day_floor_b20
+FROM price_day p
+JOIN b20_thermal_table b ON p.date_ams = b.date_ams
+JOIN thermal_day t       ON p.date_ams = t.date_ams
 ;
 
 -- n per month-year. Expected rows: 68.
@@ -100,7 +130,11 @@ SELECT
     ROW_NUMBER() OVER (PARTITION BY d.year_date, d.month_date
                        ORDER BY d.day_max_load  DESC, d.date_ams) AS place_load,
     ROW_NUMBER() OVER (PARTITION BY d.year_date, d.month_date
-                       ORDER BY d.day_swing_b20 DESC, d.date_ams) AS place_b20
+                       ORDER BY d.day_swing_th  DESC, d.date_ams) AS place_th,
+    ROW_NUMBER() OVER (PARTITION BY d.year_date, d.month_date
+                       ORDER BY d.day_swing_b20 DESC, d.date_ams) AS place_b20,
+    ROW_NUMBER() OVER (PARTITION BY d.year_date, d.month_date
+                       ORDER BY d.day_floor_b20 DESC, d.date_ams) AS place_floor
 FROM day_series d JOIN group_n g ON d.year_date = g.year_date AND d.month_date = g.month_date
 ;
 
@@ -116,21 +150,33 @@ SELECT
     COUNT(*)                                               AS days_s,
     COUNT(*) FILTER (WHERE is_ext_day)                     AS ext_s,
     COUNT(*) FILTER (WHERE place_load <= n)                AS top_load_s,
+    COUNT(*) FILTER (WHERE place_th   <= n)                AS top_th_s,
     COUNT(*) FILTER (WHERE place_b20  <= n)                AS top_b20_s,
+    COUNT(*) FILTER (WHERE place_floor <= n)               AS top_floor_s,
     COUNT(*) FILTER (WHERE is_ext_day AND place_load <= n) AS match_load_s,
-    COUNT(*) FILTER (WHERE is_ext_day AND place_b20  <= n) AS match_b20_s
+    COUNT(*) FILTER (WHERE is_ext_day AND place_th   <= n) AS match_th_s,
+    COUNT(*) FILTER (WHERE is_ext_day AND place_b20  <= n) AS match_b20_s,
+    COUNT(*) FILTER (WHERE is_ext_day AND place_floor <= n) AS match_floor_s
 FROM ranked
 GROUP BY year_date, month_date, day_of_week, n, days_in_group
 ;
 
--- The same, one row per series, so everything downstream is written once. Expected rows: 952.
+-- The same, one row per series, so everything downstream is written once. Expected rows: 1,904.
 CREATE OR REPLACE TEMP TABLE strata_long AS
 SELECT 'load' AS series, year_date, month_date, day_of_week, n, days_in_group,
        days_s, ext_s, top_load_s AS top_s, match_load_s AS match_s
 FROM strata
 UNION ALL
+SELECT 'thermal', year_date, month_date, day_of_week, n, days_in_group,
+       days_s, ext_s, top_th_s, match_th_s
+FROM strata
+UNION ALL
 SELECT 'b20', year_date, month_date, day_of_week, n, days_in_group,
        days_s, ext_s, top_b20_s, match_b20_s
+FROM strata
+UNION ALL
+SELECT 'b20_floor', year_date, month_date, day_of_week, n, days_in_group,
+       days_s, ext_s, top_floor_s, match_floor_s
 FROM strata
 ;
 
@@ -152,9 +198,15 @@ SELECT
     SUM(match_load_s) AS match_load,
     ROUND(100.0 * SUM(match_load_s) / NULLIF(n, 0), 1) AS pct_load,
     ROUND(100.0 * SUM(1.0 * ext_s * top_load_s / days_s) / NULLIF(n, 0), 1) AS chance_load,
+    SUM(match_th_s) AS match_th,
+    ROUND(100.0 * SUM(match_th_s) / NULLIF(n, 0), 1) AS pct_th,
+    ROUND(100.0 * SUM(1.0 * ext_s * top_th_s / days_s) / NULLIF(n, 0), 1) AS chance_th,
     SUM(match_b20_s) AS match_b20,
     ROUND(100.0 * SUM(match_b20_s) / NULLIF(n, 0), 1) AS pct_b20,
-    ROUND(100.0 * SUM(1.0 * ext_s * top_b20_s / days_s) / NULLIF(n, 0), 1) AS chance_b20
+    ROUND(100.0 * SUM(1.0 * ext_s * top_b20_s / days_s) / NULLIF(n, 0), 1) AS chance_b20,
+    SUM(match_floor_s) AS match_floor,
+    ROUND(100.0 * SUM(match_floor_s) / NULLIF(n, 0), 1) AS pct_floor,
+    ROUND(100.0 * SUM(1.0 * ext_s * top_floor_s / days_s) / NULLIF(n, 0), 1) AS chance_floor
 FROM strata
 GROUP BY year_date, month_date, days_in_group, n
 ORDER BY year_date, month_date
@@ -232,7 +284,10 @@ SELECT 'all', series, 'all', SUM(ext_s), SUM(match_s)
 FROM inf GROUP BY series
 ;
 
--- The p-value and its companions, per level, part and series. sums_to_one checks that every
+-- The p-value and its companions, per level, part and series. p_value is the upper tail, the
+-- probability that luck matches at least as many days; p_below is the lower tail, at most as
+-- many, and is what shows a series that AVOIDS the extreme days, which the upper tail can only
+-- report as a p near 1. The B20 floor is the case that needed it. sums_to_one checks that every
 -- distribution was assembled correctly; it fails immediately if a binomial is missing.
 CREATE OR REPLACE TEMP TABLE tested AS
 SELECT
@@ -240,6 +295,7 @@ SELECT
     SUM(d.k * d.p)                                           AS expected,
     sqrt(SUM(d.k * d.k * d.p) - SUM(d.k * d.p) ^ 2)          AS sd,
     SUM(d.p) FILTER (WHERE d.k >= o.k_obs)                   AS p_value,
+    SUM(d.p) FILTER (WHERE d.k <= o.k_obs)                   AS p_below,
     SUM(d.p)                                                 AS sums_to_one
 FROM observed o
 JOIN dist d ON d.level = o.level AND d.series = o.series AND d.part = o.part
@@ -249,7 +305,7 @@ GROUP BY o.level, o.series, o.part, o.ext_days, o.k_obs
 
 -- The answer, over the whole range. The p-value is the probability that a series unrelated to
 -- price, under the weekday-preserving null, matches at least as many extreme days as observed.
--- Expected rows: 2.
+-- Expected rows: 4.
 SELECT
     series,
     ext_days,
@@ -260,10 +316,11 @@ SELECT
     ROUND(sd, 2)                            AS sd,
     ROUND((k_obs - expected) / sd, 2)       AS sd_above_chance,
     p_value,
+    p_below,
     ROUND(sums_to_one, 9)                   AS sums_to_one
 FROM tested
 WHERE level = 'all'
-ORDER BY series DESC
+ORDER BY CASE series WHEN 'load' THEN 1 WHEN 'thermal' THEN 2 WHEN 'b20' THEN 3 ELSE 4 END
 ;
 
 SELECT '--------------------------------' AS separator;
@@ -276,9 +333,15 @@ SELECT
     MAX(k_obs) FILTER (WHERE series = 'load')                             AS load_matches,
     ROUND(MAX(expected) FILTER (WHERE series = 'load'), 1)                AS load_expected,
     MAX(p_value) FILTER (WHERE series = 'load')                           AS p_load,
+    MAX(k_obs) FILTER (WHERE series = 'thermal')                          AS th_matches,
+    ROUND(MAX(expected) FILTER (WHERE series = 'thermal'), 1)             AS th_expected,
+    MAX(p_value) FILTER (WHERE series = 'thermal')                        AS p_th,
     MAX(k_obs) FILTER (WHERE series = 'b20')                              AS b20_matches,
     ROUND(MAX(expected) FILTER (WHERE series = 'b20'), 1)                 AS b20_expected,
-    MAX(p_value) FILTER (WHERE series = 'b20')                            AS p_b20
+    MAX(p_value) FILTER (WHERE series = 'b20')                            AS p_b20,
+    MAX(k_obs) FILTER (WHERE series = 'b20_floor')                        AS floor_matches,
+    ROUND(MAX(expected) FILTER (WHERE series = 'b20_floor'), 1)           AS floor_expected,
+    MAX(p_value) FILTER (WHERE series = 'b20_floor')                      AS p_floor
 FROM tested
 WHERE level = 'year'
 GROUP BY part
@@ -296,9 +359,15 @@ SELECT
     MAX(k_obs) FILTER (WHERE series = 'load')                             AS load_matches,
     ROUND(MAX(expected) FILTER (WHERE series = 'load'), 2)                AS load_expected,
     ROUND(MAX(p_value) FILTER (WHERE series = 'load'), 4)                 AS p_load,
+    MAX(k_obs) FILTER (WHERE series = 'thermal')                          AS th_matches,
+    ROUND(MAX(expected) FILTER (WHERE series = 'thermal'), 2)             AS th_expected,
+    ROUND(MAX(p_value) FILTER (WHERE series = 'thermal'), 4)              AS p_th,
     MAX(k_obs) FILTER (WHERE series = 'b20')                              AS b20_matches,
     ROUND(MAX(expected) FILTER (WHERE series = 'b20'), 2)                 AS b20_expected,
     ROUND(MAX(p_value) FILTER (WHERE series = 'b20'), 4)                  AS p_b20,
+    MAX(k_obs) FILTER (WHERE series = 'b20_floor')                        AS floor_matches,
+    ROUND(MAX(expected) FILTER (WHERE series = 'b20_floor'), 2)           AS floor_expected,
+    ROUND(MAX(p_value) FILTER (WHERE series = 'b20_floor'), 4)            AS p_floor,
     ROUND(MIN(sums_to_one), 9)                                            AS sums_to_one
 FROM tested
 WHERE level = 'month'
@@ -311,10 +380,14 @@ ORDER BY part
 SELECT
     COUNT(*) FILTER (WHERE series = 'load')                       AS months,
     ROUND(0.05 * COUNT(*) FILTER (WHERE series = 'load'), 2)      AS expected_below_05,
-    COUNT(*) FILTER (WHERE series = 'load' AND p_value < 0.05)    AS load_below_05,
-    COUNT(*) FILTER (WHERE series = 'b20'  AND p_value < 0.05)    AS b20_below_05,
+    COUNT(*) FILTER (WHERE series = 'load'    AND p_value < 0.05) AS load_below_05,
+    COUNT(*) FILTER (WHERE series = 'thermal' AND p_value < 0.05) AS th_below_05,
+    COUNT(*) FILTER (WHERE series = 'b20'     AND p_value < 0.05) AS b20_below_05,
+    COUNT(*) FILTER (WHERE series = 'b20_floor' AND p_value < 0.05) AS floor_below_05,
     ROUND(MEDIAN(p_value) FILTER (WHERE series = 'load'), 3)      AS load_median_p,
-    ROUND(MEDIAN(p_value) FILTER (WHERE series = 'b20'),  3)      AS b20_median_p
+    ROUND(MEDIAN(p_value) FILTER (WHERE series = 'thermal'), 3)   AS th_median_p,
+    ROUND(MEDIAN(p_value) FILTER (WHERE series = 'b20'),  3)      AS b20_median_p,
+    ROUND(MEDIAN(p_value) FILTER (WHERE series = 'b20_floor'), 3) AS floor_median_p
 FROM tested
 WHERE level = 'month'
 ;
@@ -322,17 +395,17 @@ WHERE level = 'month'
 SELECT '--------------------------------' AS separator;
 
 
--- Where they do not intersect, as dates: the extreme-price days that are in neither series' top
--- n. One row per informative group that has at least one such day.
+-- Where they do not intersect, as dates: the extreme-price days that are in none of the four
+-- series' top n. One row per informative group that has at least one such day.
 SELECT
     year_date,
     month_date,
     n,
-    COUNT(*)                                                          AS missed_by_both,
+    COUNT(*)                                                          AS missed_by_all,
     string_agg(CAST(day(date_ams) AS VARCHAR), ' ' ORDER BY date_ams) AS days_of_month
 FROM ranked
 WHERE n > 0 AND n < days_in_group
-  AND is_ext_day AND place_load > n AND place_b20 > n
+  AND is_ext_day AND place_load > n AND place_th > n AND place_b20 > n AND place_floor > n
 GROUP BY year_date, month_date, n
 ORDER BY year_date, month_date
 ;
