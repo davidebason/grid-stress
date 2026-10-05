@@ -104,7 +104,7 @@ Three cells are below 0.01: load in 2022 and 2023, and thermal swing in 2022. Wi
 
 **Not changed, and it moves every number:** an extreme day is still any day with one or more extreme hours, so a day extreme for one hour counts the same as one extreme for 24.
 
-**No author's reading recorded.**
+**Author's reading.** Three series give results: daily peak load, daily thermal swing and the `B20` daily floor. Over the 364 testable extreme days they are good evidence, not proof, of an association between extreme-price days and the days of peak load and of hardest thermal ramping: if those series had nothing to do with price, an overlap this large would occur by chance about once in 32,000 tries for load and once in 3,000 for thermal swing. The `B20` floor carries evidence of the same strength in the opposite direction: days on which the unidentifiable bucket stays high are extreme-price days less often than chance would give, about once in 600 tries. The test asks only whether the most extreme days of each series coincide, so this is an association between extremes, not a correlation across all days. The `B20` swing, the by-month results and the by-year results rest on too little data to support a claim, except load in 2022 and 2023 and thermal swing in 2022, which clear chance in their own right.
 
 ---
 
@@ -224,4 +224,4 @@ The figure a client sets against the cost of the equipment is therefore about **
 
 ## Open
 
-- No author's reading is recorded for Q3 or Q4.
+- No author's reading is recorded for Q4.
