@@ -298,6 +298,48 @@ ORDER BY pre.month_date
 ;
 
 
+-- Is the period part the switch? If moving to quarter-hour prices had itself narrowed the
+-- hourly spread, the narrowing would show as a step at October 2025 and in every season alike.
+-- This sets each month since the crisis against the same month in other years, all at hourly
+-- grain: before the switch each hour's single price, after it the mean of its four quarters,
+-- the same series the period part is computed from. One row per year, one column per month,
+-- each cell the median daily spread of that month. Months outside the range are NULL.
+-- Expected rows: 4, 2023 to 2026.
+CREATE OR REPLACE TEMP TABLE month_year_hourly AS
+WITH hourly AS (
+    SELECT
+        date_ams,
+        year_date,
+        month_date,
+        date_trunc('hour', date_utc) AS hour_utc,
+        AVG(price_eur_per_mwh)       AS price_h
+    FROM table_price_unit
+    WHERE date_ams >= DATE '2023-03-01'
+    GROUP BY date_ams, year_date, month_date, date_trunc('hour', date_utc)
+),
+daily AS (
+    SELECT
+        date_ams, year_date, month_date,
+        MAX(price_h) - PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_h) AS spread_h
+    FROM hourly
+    GROUP BY date_ams, year_date, month_date
+)
+SELECT
+    year_date,
+    month_date,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spread_h), 0) AS med_spread_hourly
+FROM daily
+GROUP BY year_date, month_date
+;
+
+PIVOT month_year_hourly
+ON month_date IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+USING first(med_spread_hourly)
+GROUP BY year_date
+ORDER BY year_date
+;
+
+
 -- ============================================================================================
 -- The sensitivity: from EUR per MWh to EUR per year, which is what a client sets against the
 -- cost of the equipment that moves load. Everything is per MW of load the client can move, and
