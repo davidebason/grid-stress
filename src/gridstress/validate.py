@@ -12,7 +12,7 @@ data itself: a single production type cannot plausibly out-produce the highest l
 ever recorded, and the bound moves with the load table rather than sitting as a constant. That
 rule no longer discovers anything, because `load.py` deletes the rows breaking it before calling
 this module; it stays so the deletion is confirmed rather than assumed, and so the bound is
-written down beside the other eleven rules. None of them is a property of the current data;
+written down beside the other rules. None of them is a property of the current data;
 they are properties the data must keep having after a refetch, a parser change or a fourth
 dataset.
 

@@ -3,7 +3,7 @@
 --
 -- Establishes the figures quoted under "The 2021 and 2022 price level is a gas-market event" and
 -- "Negative hours rise across the range, and this source cannot attribute the rise" in DATA.md.
--- Run against a database built by `python -m gridstress.load` followed by sql/04_hourly_tables.sql:
+-- Run against a database built by `python -m gridstress.load`:
 --
 --     duckdb -readonly data/processed/grid.duckdb -c ".read evidence/06_price_regimes.sql"
 --
@@ -41,7 +41,7 @@ ORDER BY 1, 2;
 -- 3. Mean hourly output per year for the types that bear on the negative-hour question, in MW.
 -- B16's annual maximum sits beside its mean because the mean alone hides that the series is flat:
 -- it is the transmission-connected remnant, not national solar. See "What TenneT publishes per
--- production type, and what it does not" above.
+-- production type, and what it does not" in DATA.md.
 SELECT
     year_date AS year,
     ROUND(AVG(pw_h_gen) FILTER (WHERE psr_type = 'B18'), 0) AS wind_offshore_mw,

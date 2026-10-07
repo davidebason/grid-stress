@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gridstress"
 version = "0.1.0"
-description = "When Dutch electricity prices go negative or extreme, and what a flexible consumer gains by shifting load."
+description = "When Dutch electricity prices go negative or extreme, and what a flexible consumer gains by shifting its consumption."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
