@@ -376,9 +376,10 @@ ORDER BY year_date
 -- prices.
 --
 -- Two assumptions, each varied while the other is held:
---   volume      how many hours a day the flexible MW is moved out of: 1, 2 or 4. The k dearest
---               units are escaped, so each further hour is worth less than the one before, which
---               is why volume is varied here rather than multiplied in afterwards.
+--   volume      how many hours a day the flexible MW is moved out of: 1 to 12, reported at 1, 2
+--               and 4. The k dearest units are escaped, so each further hour is worth less than
+--               the one before, which is why volume is varied here rather than multiplied in
+--               afterwards.
 --   block size  whole hours, or quarter-hours. At quarter-hour grain k hours are 4k quarters of
 --               0.25 MWh each per MW.
 --
@@ -409,9 +410,9 @@ FROM qh q JOIN qh_day d ON q.date_ams = d.date_ams
 ;
 
 -- One row per block size, day and volume: the EUR saved that day per MW of flexible consumption.
--- Expected rows: 2,010, which is 2 block sizes times 3 volumes times 335 days.
+-- Expected rows: 8,040, which is 2 block sizes times 12 volumes times 335 days.
 CREATE OR REPLACE TEMP TABLE scenario_day AS
-WITH k AS (SELECT * FROM (VALUES (1), (2), (4)) t(k))
+WITH k AS (SELECT range AS k FROM range(1, 13))
 SELECT 'hour' AS block, r.date_ams, k.k, SUM(r.price_h - r.med_h) AS saving
 FROM h_ranked r, k WHERE r.rk <= k.k
 GROUP BY r.date_ams, k.k
@@ -457,4 +458,19 @@ FROM dearest
 WHERE rk = 1
 GROUP BY time_of_day
 ORDER BY time_of_day
+;
+
+-- The whole curve: EUR per MW per year for every volume from 1 to 12 hours a day, and what the
+-- last hour added. By twelve the dearest remaining unit is close to the day's median, so the
+-- twelfth hour adds little; the README's figure draws this statement.
+-- Expected rows: 24, 12 per block size.
+SELECT
+    block,
+    k                                                                           AS hours_a_day,
+    ROUND(365 * AVG(saving), -2)                                                AS eur_per_mw_year,
+    ROUND(365 * AVG(saving) - LAG(365 * AVG(saving)) OVER (PARTITION BY block ORDER BY k), -2)
+        AS added_by_last_hour
+FROM scenario_day
+GROUP BY block, k
+ORDER BY block, k
 ;
