@@ -119,7 +119,7 @@ ORDER BY year_date
 ;
 
 -- G_MONTH_YEAR: month within year. 68 groups, about 730 hours in each. No bars: at 68 rows
--- there is no glance to take one in, and the notebook draws this one as a heatmap.
+-- there is no glance to take one in.
 -- Expected rows: 68.
 SELECT
     year_date, month_date,
