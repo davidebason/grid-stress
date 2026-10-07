@@ -3,8 +3,8 @@
 -- Production types: the psrType codes that arrive in A75 documents, and their names.
 --
 -- Source: ENTSO-E General Code Lists for Data Interchange, version 36 release 0, 2015-06-09,
--- list 2 StandardAssetTypeList, pages 7 and 8. The same table, with the link and the reasoning
--- for keeping codes rather than names in the parser, is in DATA.md.
+-- list 2 StandardAssetTypeList, pages 7 and 8. The link, and the reasoning for keeping codes
+-- rather than names in the parser, are in DATA.md.
 --
 -- Codes B21 to B24 in that list are not production types, so they are not rows here; DATA.md
 -- says what they are. No code beyond B24 appears in version 36, so a later code would arrive in

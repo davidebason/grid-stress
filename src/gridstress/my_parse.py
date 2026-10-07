@@ -8,8 +8,8 @@ document-level provenance values every caller needs.
 Every series is decoded on its own terms. Each Period states its own time interval and
 resolution, and under the A03 block encoding only the positions whose value changed are listed,
 so a listed value holds until the next listed position or until the period ends. That is expanded
-back to one point per interval before any timestamp is computed. See DATA.md, under What a
-generation response contains, for the encodings observed and for what this parser does not
+back to one point per interval before any timestamp is computed. See DATA.md, under "What a
+generation response contains", for the encodings observed and for what this parser does not
 assume.
 
 Production type codes are kept as ENTSO-E writes them and are never translated to names.
