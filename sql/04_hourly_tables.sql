@@ -3,23 +3,10 @@
 --
 --     duckdb data/processed/grid.duckdb -c ".read sql/04_hourly_tables.sql"
 --
--- It builds the three tables the analysis queries are asked over, at the grains
--- fixed in the analysis plan: one row per hour, one row per hour per production type, one row
--- per Amsterdam local day.
+-- It builds the three tables the analysis queries are asked over: one row per hour, one row per
+-- hour per production type, one row per Amsterdam local day.
 
 SET TimeZone = 'UTC';
-
--- CREATE OR REPLACE TABLE table_load AS
--- SELECT
---     f.date_utc,
---     date_ams,
---     hour_date,
---     day_of_week,
---     month_date,
---     year_date,
---     load_mw
--- FROM fact_load f JOIN dim_time d ON date_trunc('hour', f.date_utc) = d.date_utc
--- ;
 
 CREATE OR REPLACE TABLE table_h_price_load AS
 WITH partial_1 AS (
@@ -64,7 +51,6 @@ SELECT
     avg_h_price > extreme_price_value AS extreme_price
 FROM partial_1 p1 JOIN partial_2 p2 ON p1.date_utc = p2.date_utc CROSS JOIN extreme_price
 ;
-SELECT * FROM table_h_price_load LIMIT 20;
 
 CREATE OR REPLACE TABLE table_composition AS
 WITH pw_h_type AS (
@@ -89,7 +75,6 @@ SELECT
 FROM pw_h_type t JOIN dim_time d ON t.date_utc = d.date_utc
 ;
 
-SELECT * FROM table_composition LIMIT 20;
 
 CREATE OR REPLACE TABLE b20_thermal_table AS
 WITH b20_table AS (
@@ -121,5 +106,3 @@ SELECT
     pw_floor_day_b20,
     day_th_energy_output
 FROM b20_table b LEFT JOIN thermal_table t ON b.date_ams = t.date_ams;
-
--- SELECT * FROM b20_thermal_table LIMIT 20;

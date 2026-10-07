@@ -78,7 +78,7 @@ The same command runs any file in `analysis/` or `evidence/`. Each file's header
 pytest
 ```
 
-The notebooks in `notebooks/` need the plotting extra. `nbstripout --install` makes git strip their outputs on every commit:
+The notebook in `notebooks/`, which draws the README's figure, needs the plotting extra. `nbstripout --install` makes git strip their outputs on every commit:
 
 ```bash
 pip install -e ".[figures]"

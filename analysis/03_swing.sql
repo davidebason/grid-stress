@@ -1,6 +1,6 @@
--- Q3_SWING. Within a single day, do the swings in price go with the swings in load, in
--- gas-and-coal output and in the B20 daily swing, and with a high B20 daily floor; and on the
--- days where they do not, which days are those.
+-- Q3_SWING. On the days prices go extreme, are load, the gas-and-coal swing and the B20 daily
+-- swing and floor at their monthly extremes too; and on the days they are not, which days those
+-- are.
 --
 -- Gas-and-coal output, B04 gas plus B05 coal, is what still has to be burned once wind and sun
 -- have supplied what they can, so it moves opposite to renewable output and serves as an inverse
