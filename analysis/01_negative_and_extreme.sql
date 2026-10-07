@@ -15,11 +15,9 @@ SET TimeZone = 'UTC';
 -- character per percentage point, so a bar of the same length means the same thing in every
 -- statement below and its length can be read as the number.
 --
--- price_bar is drawn from 60 EUR/MWh rather than from zero, one character per 5 above it. The
--- median hourly price never falls below 69 or rises above 132 at any granularity, so a bar from
--- zero would spend seven of its thirteen characters on ground every group shares: at G_DOW it
--- varied by a single character across the whole week. The baseline is fixed rather than fitted
--- per statement, so these bars stay comparable between statements like the other two.
+-- price_bar is drawn from 60 EUR/MWh, one character per 5 above it: no group's median falls
+-- below 69, so a bar from zero would be mostly ground every group shares. The baseline is fixed,
+-- so these bars compare between statements like the other two.
 --
 -- Ordered by the grouping key, not by the counts: only one column can control the row order, and
 -- ordering by a count leaves every other column shapeless. The largest group is still visible as
@@ -29,13 +27,9 @@ SET TimeZone = 'UTC';
 -- drags every mean up, by 6 EUR/MWh on Sunday and 26 on Tuesday, so the two rank the days
 -- differently over the whole range.
 --
--- Deepest price in the hour is reported as the 5th percentile of the group, not its median and
--- not its minimum. A median returns what the hourly price already said, the two columns holding
--- the same number in 83.8% of hours because one published price per hour makes min, mean and max
--- identical before 2025-10-01. A minimum is one observation and does not improve with group
--- size: at G_HOUR it tracks the midday block where negatives happen, but at G_DOW it is one
--- print in 7,094 and reads Friday -499.6 against Tuesday -79.2, with no trace of the weekend
--- pattern every other column shows. The 5th percentile keeps that pattern at both.
+-- Deepest price in the hour is reported as the 5th percentile of the group: its median would
+-- repeat the hourly price, since before 2025-10-01 an hour has one price, and its minimum is a
+-- single print that hides the weekly pattern every other column shows.
 -- ---------------------------------------------------------------------------------------------
 
 -- G_HOUR: hour of day within the dataset. 24 groups, about 2,069 hours in each.
@@ -150,8 +144,6 @@ FROM table_h_price_load
 GROUP BY month_date, hour_date
 ORDER BY month_date, hour_date
 ;
-
------------------------------------------------------------
     
 -- ---------------------------------------------------------------------------------------------
 -- When in the day and the year a consumer meets each end of the price, in the coarse blocks the

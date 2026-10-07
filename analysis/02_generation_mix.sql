@@ -8,10 +8,9 @@
 -- One row per group per production type, since the shift is computed per type. Carry the
 -- count of negative and of extreme hours behind each figure: the thinnest year rests on 70.
 --
--- One statement per grouping, and no statement groups by two axes at once: that is what
--- leaves 1.67 negative hours per group, where a min, a max and a quintile all return the
--- same number. The expected row count sits above each statement, so a statement that has
--- silently lost most of its data says so.
+-- One statement per grouping, and no statement groups by two axes at once, which would leave too
+-- few flagged hours per group to carry a statistic. The expected row count sits above each
+-- statement, so a statement that has silently lost most of its data says so.
 --
 --     duckdb -readonly data/processed/grid.duckdb -c ".read analysis/02_generation_mix.sql"
 
@@ -19,14 +18,10 @@ SET TimeZone = 'UTC';
 
 
 -- Generation share: which production types carry the largest share of published generation in a
--- typical hour, and by how much. The per-type median, not MAX(share_h): the maximum is one row
--- out of 44,640 and reports the most concentrated hour ever reached rather than which type leads,
--- and the two disagree in six months of twelve.
+-- typical hour, and by how much. The per-type median, not the maximum, which is a single hour.
 --
--- Three rows per group rather than one or ten. One row, from arg_max, names a leader and hides
--- how narrow the lead is -- gas leads June by four points and October by one. Ten rows are the
--- whole composition, most of it near zero. Three shows the leader, the margin and who is behind
--- it, which is what a reader needs to judge the claim rather than take it.
+-- Three rows per group: the leader, the margin and who is behind it. One row hides how narrow
+-- the lead is, and ten are mostly near zero.
 --
 -- QUALIFY is DuckDB and Snowflake. Elsewhere the portable form is to wrap the ranked query in a
 -- subquery and put the same condition in a WHERE.
@@ -35,24 +30,6 @@ SET TimeZone = 'UTC';
 -- computed once into a TEMP table and read twice: the pivot for the whole composition, the
 -- ranking for the leaders and the margins. TEMP rather than a permanent table, so nothing is
 -- left in the database file for a later load to disagree with.
--- WITH medians AS (
---     SELECT
---         month_date,
---         psr_type,
---         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY share_h) AS median_share_h
---     FROM table_composition
---     GROUP BY month_date, psr_type
--- )
--- SELECT
---     month_date,
---     ROW_NUMBER() OVER (PARTITION BY month_date ORDER BY median_share_h DESC) AS place,
---     psr_type,
---     ROUND(100 * median_share_h, 1) AS median_share_pct,
---     repeat('*', CAST(100 * median_share_h AS INT)) AS share_bar
--- FROM medians
--- QUALIFY place <= 3
--- ORDER BY month_date, place
--- ;
 
 CREATE OR REPLACE TEMP TABLE month_medians AS
 SELECT
@@ -136,8 +113,7 @@ ORDER BY year_date
 ;
 
 -- Generation share shift: the median share over the flagged hours minus the median over all
--- hours of the same group, twice, once per flag, in percentage points. The other way round
--- reverses every sign and says gas rises when prices go negative.
+-- hours of the same group, twice, once per flag, in percentage points.
 --
 -- This first statement is the whole range, which sits outside the granularity list: it is a
 -- summary, not a profile, and on the extreme side it is close to a statement about 2022, since
@@ -196,10 +172,8 @@ PIVOT shift_year ON psr_type USING first(shift_ext) GROUP BY year_date ORDER BY 
 
 
 -- B20 daily swing and floor, the mean of the daily values. The bucket is a mixture, so its share
--- is not interpretable on its own: the swing is the part that follows the sun and the floor is
--- the part that does not, and they move on opposite schedules -- the swing peaks in June where
--- the floor bottoms in August, and the swing bottoms in December where the floor peaks in
--- February. A share adds the two together and divides by a denominator that is itself moving.
+-- is not interpretable on its own: the swing is the part that follows the sun and the floor the
+-- part that does not, and they peak in opposite seasons.
 --
 -- G_MONTH. Expected rows: 12.
 SELECT

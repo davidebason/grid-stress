@@ -11,10 +11,8 @@
 -- G_DOW is in because the weekend is a different market for price: Q1 found Sunday negative in
 -- 9.88% of its hours against Wednesday's 2.29%.
 --
--- One statement per grouping, and no statement groups by two axes at once: that is what
--- leaves 1.67 negative hours per group, where a min, a max and a quintile all return the
--- same number. The expected row count sits above each statement, so a statement that has
--- silently lost most of its data says so.
+-- One statement per grouping. The expected row count sits above each statement, so a statement
+-- that has silently lost most of its data says so.
 --
 --     duckdb -readonly data/processed/grid.duckdb -c ".read analysis/04_shifting_gain.sql"
 
@@ -56,8 +54,8 @@ GROUP BY date_ams, day_of_week, month_date, year_date
 -- escapes against an ordinary unit it lands in, not the single cheapest one, since a sizeable
 -- shift cannot all land there. The units are the day's 24 hourly prices before the change and
 -- its 96 quarter-hour prices after it, so the two periods are each measured at their own grain.
--- Each group reports the median of its daily spreads. The mean is dragged up by the 2021-22
--- crisis, which puts 2022 at 205 EUR/MWh against 83 to 138 in every other year before the change.
+-- Each group reports the median of its daily spreads, since the mean is dragged up by the
+-- 2021-22 crisis.
 
 -- Each statement puts the two periods side by side, one row per group, with the change beside
 -- them: after minus before, so a positive change is a wider daily spread after the move to
