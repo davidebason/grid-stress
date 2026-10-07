@@ -219,7 +219,7 @@ SELECT '--------------------------------' AS separator;
 -- The probability of each possible overlap inside one weekday of one informative month. j runs
 -- over the overlaps that are possible at all: at least E + T - D, since that many must collide
 -- when the two sets together exceed the days available, and at most the smaller set.
--- Expected rows: about 1,000.
+-- Expected rows: 1,572.
 CREATE OR REPLACE TEMP TABLE stratum_pmf AS
 SELECT
     s.series, s.year_date, s.month_date, s.day_of_week, j.j,

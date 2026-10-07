@@ -239,7 +239,8 @@ FROM q JOIN h ON q.date_ams = h.date_ams
 -- alone. Both bases are kept because the project reports the whole range as its reference and
 -- the post-crisis range wherever a finding changes with it, and this is one that does.
 --
--- Expected rows: 7, then 11. No G_YEAR: the post-change period holds 92 days of 2025, all
+-- Expected rows: 7, then 12, September's after columns empty, since the post-change period
+-- holds no September. No G_YEAR: the post-change period holds 92 days of 2025, all
 -- October to December, and 243 of 2026, January to August, so a year row would compare seasons.
 WITH pre AS (
     SELECT dow_num, day_of_week,
