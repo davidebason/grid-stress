@@ -56,6 +56,18 @@ JOIN dim_time t ON h.hour_utc = t.date_utc
 GROUP BY 1
 ORDER BY 1;
 
+-- 3b. B16 by month, over the whole range. Expect it to follow the seasons, about 9 MW of mean
+--     output in December against about 101 MW in June, while section 3 shows it flat from year
+--     to year: the identifiable fleet behaves like solar and does not grow like it.
+SELECT t.month_date AS month,
+       ROUND(AVG(h.mw), 0) AS b16_mean_mw,
+       ROUND(MAX(h.mw), 0) AS b16_peak_mw
+FROM hourly_type h
+JOIN dim_time t ON h.hour_utc = t.date_utc
+WHERE h.psr_type = 'B16'
+GROUP BY 1
+ORDER BY 1;
+
 -- 4. The renewable share and residual load, computed twice: excluding B20 from the renewables,
 --    then including it. Expect 17.8% against 48.8%, and 10,399 MW against 6,353 MW.
 WITH per_hour AS (
