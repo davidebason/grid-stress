@@ -1,6 +1,6 @@
 -- Q4_GAIN. What a consumer saves by choosing when to buy.
 --
--- Measurables: daily price spread, spread inside the hour.
+-- Measurables: daily price spread, quarter-hour gain, the sensitivity in EUR per MW per year.
 -- Reads: table_price_unit.
 -- Never the fact tables: the grain was fixed in sql/06_price_units.sql, which keeps every price
 -- at the market time unit it was published at and attaches its Amsterdam local day.
@@ -371,8 +371,9 @@ ORDER BY year_date
 
 -- ============================================================================================
 -- The sensitivity: from EUR per MWh to EUR per year, which is what a client sets against the
--- cost of the equipment that moves load. Everything is per MW of load the client can move, and
--- over the same 335 post-change days, so every scenario is measured on the same prices.
+-- cost of the equipment that moves consumption. Everything is per MW of consumption the client
+-- can move, and over the same 335 post-change days, so every scenario is measured on the same
+-- prices.
 --
 -- Two assumptions, each varied while the other is held:
 --   volume      how many hours a day the flexible MW is moved out of: 1, 2 or 4. The k dearest
@@ -382,12 +383,10 @@ ORDER BY year_date
 --               0.25 MWh each per MW.
 --
 -- Fixed throughout, and stated so they are not mistaken for findings: the consumer knows each
--- day's prices in advance, which day-ahead publication the afternoon before allows; moved load
--- lands within the same day, at its ordinary, median unit, not the cheapest one; the consumer is
--- too small to move the price; and only the wholesale day-ahead price counts, network charges
--- and taxes being flat across the day. Notice and crossing midnight were varied on 2026-10-05
--- and dropped the same day to keep the study simple: a fixed schedule with no notice earned
--- about a third less, and letting load cross midnight changed almost nothing.
+-- day's prices in advance, which day-ahead publication the afternoon before allows; moved
+-- consumption lands within the same day, at its ordinary, median unit, not the cheapest one; the
+-- consumer is too small to move the price; and only the wholesale day-ahead price counts,
+-- network charges and taxes being flat across the day.
 --
 -- EUR per year is the MEAN daily saving times 365, not the median: a year's saving is a total,
 -- and a total is a mean times a count. Every other figure in this file is a median because it
@@ -409,7 +408,7 @@ SELECT
 FROM qh q JOIN qh_day d ON q.date_ams = d.date_ams
 ;
 
--- One row per block size, day and volume: the EUR saved that day per MW of flexible load.
+-- One row per block size, day and volume: the EUR saved that day per MW of flexible consumption.
 -- Expected rows: 2,010, which is 2 block sizes times 3 volumes times 335 days.
 CREATE OR REPLACE TEMP TABLE scenario_day AS
 WITH k AS (SELECT * FROM (VALUES (1), (2), (4)) t(k))
@@ -423,7 +422,8 @@ GROUP BY r.date_ams, k.k
 ;
 
 -- The sensitivity table. eur_per_mwh_1h is the mean saving per MWh moved when one hour a day is
--- moved; the three annual columns are EUR per MW of flexible load per year. Expected rows: 2.
+-- moved; the three annual columns are EUR per MW of flexible consumption per year.
+-- Expected rows: 2.
 SELECT
     block,
     COUNT(DISTINCT date_ams)                                AS days,

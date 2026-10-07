@@ -142,12 +142,12 @@ ORDER BY year_date
 -- This first statement is the whole range, which sits outside the granularity list: it is a
 -- summary, not a profile, and on the extreme side it is close to a statement about 2022, since
 -- 4,055 of the 4,956 extreme hours fall in that one year. The two that follow are the profiles
--- the plan asks for.
+-- by month and by year.
 --
 -- Expected rows: 10, one per production type.
 SELECT
     psr_type,
-    -- The flagged hours minus all hours, in percentage points, as the plan defines it. The other
+    -- The flagged hours minus all hours, in percentage points. The other
     -- way round reverses every sign and says gas rises when prices go negative.
     ROUND(100 * ((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY share_h) FILTER (WHERE price_neg))
                  - (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY share_h))), 2) AS share_shift_neg,
