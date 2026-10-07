@@ -153,3 +153,55 @@ ORDER BY month_date, hour_date
 
 -----------------------------------------------------------
     
+-- ---------------------------------------------------------------------------------------------
+-- When in the day and the year a consumer meets each end of the price, in the coarse blocks the
+-- memo states. The negative hours split by season, March to September against October to
+-- February, and by time of day: midday 10:00 to 16:59, night 00:00 to 06:59, and the rest. This
+-- is G_HOUR_MONTH coarsened, so it reads one grouping, not two.
+-- Expected rows: 6.
+SELECT
+    CASE WHEN month_date IN (10, 11, 12, 1, 2) THEN 'Oct-Feb' ELSE 'Mar-Sep' END AS season,
+    CASE WHEN hour_date BETWEEN 10 AND 16 THEN 'midday 10-16'
+         WHEN hour_date BETWEEN 0 AND 6   THEN 'night 0-6'
+         ELSE 'other' END                                                       AS time_of_day,
+    COUNT(*)                                                                    AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                                           AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg) / COUNT(*), 2)              AS neg_pct
+FROM table_h_price_load
+GROUP BY season, time_of_day
+ORDER BY season, time_of_day
+;
+
+-- The extreme hours since 2023, by hour, day of week and month. Over the whole range 4,055 of
+-- the 4,956 extreme hours fall in 2022, so every whole-range profile of extremes above is
+-- mostly the shape of the gas crisis. These three show the shape a consumer meets now.
+-- Expected rows: 24, 7, 12.
+SELECT
+    hour_date,
+    COUNT(*) FILTER (WHERE extreme_price)                                       AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2)          AS ext_pct
+FROM table_h_price_load
+WHERE year_date >= 2023
+GROUP BY hour_date
+ORDER BY hour_date
+;
+
+SELECT
+    day_of_week,
+    COUNT(*) FILTER (WHERE extreme_price)                                       AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2)          AS ext_pct
+FROM table_h_price_load
+WHERE year_date >= 2023
+GROUP BY day_of_week
+ORDER BY day_of_week
+;
+
+SELECT
+    month_date,
+    COUNT(*) FILTER (WHERE extreme_price)                                       AS ext,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE extreme_price) / COUNT(*), 2)          AS ext_pct
+FROM table_h_price_load
+WHERE year_date >= 2023
+GROUP BY month_date
+ORDER BY month_date
+;

@@ -435,3 +435,26 @@ FROM scenario_day
 GROUP BY block
 ORDER BY block
 ;
+
+-- When in the day the unit to escape sits: the hour holding each day's dearest quarter-hour since
+-- the change, in three blocks, morning 06:00 to 09:59, evening 16:00 to 21:59, and the rest.
+-- Expected rows: 3, from 335 days.
+WITH dearest AS (
+    SELECT
+        date_ams,
+        hour_date,
+        ROW_NUMBER() OVER (PARTITION BY date_ams ORDER BY price_eur_per_mwh DESC, date_utc) AS rk
+    FROM table_price_unit
+    WHERE unit_minutes = 15
+)
+SELECT
+    CASE WHEN hour_date BETWEEN 6 AND 9   THEN 'morning 6-9'
+         WHEN hour_date BETWEEN 16 AND 21 THEN 'evening 16-21'
+         ELSE 'other' END                                                       AS time_of_day,
+    COUNT(*)                                                                    AS days,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)                          AS days_pct
+FROM dearest
+WHERE rk = 1
+GROUP BY time_of_day
+ORDER BY time_of_day
+;
