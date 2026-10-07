@@ -205,3 +205,18 @@ WHERE year_date >= 2023
 GROUP BY month_date
 ORDER BY month_date
 ;
+
+-- G_YEAR over January to August only. The range ends on 2026-08-31, so 2026 is eight months
+-- long, and those months hold most of a year's negative hours: a partial 2026 set against full
+-- years overstates it. This compares every year over the months 2026 has.
+-- Expected rows: 6.
+SELECT
+    year_date,
+    COUNT(*)                                                                    AS hours,
+    COUNT(*) FILTER (WHERE price_neg)                                           AS neg,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE price_neg) / COUNT(*), 2)              AS neg_pct
+FROM table_h_price_load
+WHERE month_date <= 8
+GROUP BY year_date
+ORDER BY year_date
+;
