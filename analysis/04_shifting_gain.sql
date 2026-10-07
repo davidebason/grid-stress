@@ -1,6 +1,6 @@
 -- Q4_GAIN. What a consumer saves by choosing when to buy.
 --
--- Measurables: daily price spread, spread inside the hour.
+-- Measurables: daily price spread, quarter-hour gain, the sensitivity in EUR per MW per year.
 -- Reads: table_price_unit.
 -- Never the fact tables: the grain was fixed in sql/06_price_units.sql, which keeps every price
 -- at the market time unit it was published at and attaches its Amsterdam local day.
@@ -239,7 +239,8 @@ FROM q JOIN h ON q.date_ams = h.date_ams
 -- alone. Both bases are kept because the project reports the whole range as its reference and
 -- the post-crisis range wherever a finding changes with it, and this is one that does.
 --
--- Expected rows: 7, then 11. No G_YEAR: the post-change period holds 92 days of 2025, all
+-- Expected rows: 7, then 12, September's after columns empty, since the post-change period
+-- holds no September. No G_YEAR: the post-change period holds 92 days of 2025, all
 -- October to December, and 243 of 2026, January to August, so a year row would compare seasons.
 WITH pre AS (
     SELECT dow_num, day_of_week,
@@ -298,25 +299,96 @@ ORDER BY pre.month_date
 ;
 
 
+-- The daily spread at hourly grain, every year of the range, like for like: before the switch
+-- each hour's single price, after it the mean of its four quarters. The before-and-after
+-- comparison above cannot give this, since it measures each period at its own grain, and the
+-- memo's level since 2023 and its 2022 comparison rest on it. Expected rows: 6.
+WITH hourly AS (
+    SELECT
+        date_ams,
+        year_date,
+        date_trunc('hour', date_utc) AS hour_utc,
+        AVG(price_eur_per_mwh)       AS price_h
+    FROM table_price_unit
+    GROUP BY date_ams, year_date, date_trunc('hour', date_utc)
+),
+daily AS (
+    SELECT
+        date_ams, year_date,
+        MAX(price_h) - PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_h) AS spread_h
+    FROM hourly
+    GROUP BY date_ams, year_date
+)
+SELECT
+    year_date,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spread_h), 1) AS med_spread_hourly,
+    COUNT(*)                                                         AS days
+FROM daily
+GROUP BY year_date
+ORDER BY year_date
+;
+
+-- Is the period part the switch? If moving to quarter-hour prices had itself narrowed the
+-- hourly spread, the narrowing would show as a step at October 2025 and in every season alike.
+-- This sets each month since the crisis against the same month in other years, all at hourly
+-- grain: before the switch each hour's single price, after it the mean of its four quarters,
+-- the same series the period part is computed from. One row per year, one column per month,
+-- each cell the median daily spread of that month. Months outside the range are NULL.
+-- Expected rows: 4, 2023 to 2026.
+CREATE OR REPLACE TEMP TABLE month_year_hourly AS
+WITH hourly AS (
+    SELECT
+        date_ams,
+        year_date,
+        month_date,
+        date_trunc('hour', date_utc) AS hour_utc,
+        AVG(price_eur_per_mwh)       AS price_h
+    FROM table_price_unit
+    WHERE date_ams >= DATE '2023-03-01'
+    GROUP BY date_ams, year_date, month_date, date_trunc('hour', date_utc)
+),
+daily AS (
+    SELECT
+        date_ams, year_date, month_date,
+        MAX(price_h) - PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_h) AS spread_h
+    FROM hourly
+    GROUP BY date_ams, year_date, month_date
+)
+SELECT
+    year_date,
+    month_date,
+    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spread_h), 0) AS med_spread_hourly
+FROM daily
+GROUP BY year_date, month_date
+;
+
+PIVOT month_year_hourly
+ON month_date IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+USING first(med_spread_hourly)
+GROUP BY year_date
+ORDER BY year_date
+;
+
+
 -- ============================================================================================
 -- The sensitivity: from EUR per MWh to EUR per year, which is what a client sets against the
--- cost of the equipment that moves load. Everything is per MW of load the client can move, and
--- over the same 335 post-change days, so every scenario is measured on the same prices.
+-- cost of the equipment that moves consumption. Everything is per MW of consumption the client
+-- can move, and over the same 335 post-change days, so every scenario is measured on the same
+-- prices.
 --
 -- Two assumptions, each varied while the other is held:
---   volume      how many hours a day the flexible MW is moved out of: 1, 2 or 4. The k dearest
---               units are escaped, so each further hour is worth less than the one before, which
---               is why volume is varied here rather than multiplied in afterwards.
+--   volume      how many hours a day the flexible MW is moved out of: 1 to 12, reported at 1, 2
+--               and 4. The k dearest units are escaped, so each further hour is worth less than
+--               the one before, which is why volume is varied here rather than multiplied in
+--               afterwards.
 --   block size  whole hours, or quarter-hours. At quarter-hour grain k hours are 4k quarters of
 --               0.25 MWh each per MW.
 --
 -- Fixed throughout, and stated so they are not mistaken for findings: the consumer knows each
--- day's prices in advance, which day-ahead publication the afternoon before allows; moved load
--- lands within the same day, at its ordinary, median unit, not the cheapest one; the consumer is
--- too small to move the price; and only the wholesale day-ahead price counts, network charges
--- and taxes being flat across the day. Notice and crossing midnight were varied on 2026-10-05
--- and dropped the same day to keep the study simple: a fixed schedule with no notice earned
--- about a third less, and letting load cross midnight changed almost nothing.
+-- day's prices in advance, which day-ahead publication the afternoon before allows; moved
+-- consumption lands within the same day, at its ordinary, median unit, not the cheapest one; the
+-- consumer is too small to move the price; and only the wholesale day-ahead price counts,
+-- network charges and taxes being flat across the day.
 --
 -- EUR per year is the MEAN daily saving times 365, not the median: a year's saving is a total,
 -- and a total is a mean times a count. Every other figure in this file is a median because it
@@ -338,10 +410,10 @@ SELECT
 FROM qh q JOIN qh_day d ON q.date_ams = d.date_ams
 ;
 
--- One row per block size, day and volume: the EUR saved that day per MW of flexible load.
--- Expected rows: 2,010, which is 2 block sizes times 3 volumes times 335 days.
+-- One row per block size, day and volume: the EUR saved that day per MW of flexible consumption.
+-- Expected rows: 8,040, which is 2 block sizes times 12 volumes times 335 days.
 CREATE OR REPLACE TEMP TABLE scenario_day AS
-WITH k AS (SELECT * FROM (VALUES (1), (2), (4)) t(k))
+WITH k AS (SELECT range AS k FROM range(1, 13))
 SELECT 'hour' AS block, r.date_ams, k.k, SUM(r.price_h - r.med_h) AS saving
 FROM h_ranked r, k WHERE r.rk <= k.k
 GROUP BY r.date_ams, k.k
@@ -352,7 +424,8 @@ GROUP BY r.date_ams, k.k
 ;
 
 -- The sensitivity table. eur_per_mwh_1h is the mean saving per MWh moved when one hour a day is
--- moved; the three annual columns are EUR per MW of flexible load per year. Expected rows: 2.
+-- moved; the three annual columns are EUR per MW of flexible consumption per year.
+-- Expected rows: 2.
 SELECT
     block,
     COUNT(DISTINCT date_ams)                                AS days,
@@ -363,4 +436,42 @@ SELECT
 FROM scenario_day
 GROUP BY block
 ORDER BY block
+;
+
+-- When in the day the unit to escape sits: the hour holding each day's dearest quarter-hour since
+-- the change, in three blocks, morning 06:00 to 09:59, evening 16:00 to 21:59, and the rest.
+-- Expected rows: 3, from 335 days.
+WITH dearest AS (
+    SELECT
+        date_ams,
+        hour_date,
+        ROW_NUMBER() OVER (PARTITION BY date_ams ORDER BY price_eur_per_mwh DESC, date_utc) AS rk
+    FROM table_price_unit
+    WHERE unit_minutes = 15
+)
+SELECT
+    CASE WHEN hour_date BETWEEN 6 AND 9   THEN 'morning 6-9'
+         WHEN hour_date BETWEEN 16 AND 21 THEN 'evening 16-21'
+         ELSE 'other' END                                                       AS time_of_day,
+    COUNT(*)                                                                    AS days,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)                          AS days_pct
+FROM dearest
+WHERE rk = 1
+GROUP BY time_of_day
+ORDER BY time_of_day
+;
+
+-- The whole curve: EUR per MW per year for every volume from 1 to 12 hours a day, and what the
+-- last hour added. By twelve the dearest remaining unit is close to the day's median, so the
+-- twelfth hour adds little; the README's figure draws this statement.
+-- Expected rows: 24, 12 per block size.
+SELECT
+    block,
+    k                                                                           AS hours_a_day,
+    ROUND(365 * AVG(saving), -2)                                                AS eur_per_mw_year,
+    ROUND(365 * AVG(saving) - LAG(365 * AVG(saving)) OVER (PARTITION BY block ORDER BY k), -2)
+        AS added_by_last_hour
+FROM scenario_day
+GROUP BY block, k
+ORDER BY block, k
 ;

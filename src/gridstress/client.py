@@ -1,4 +1,54 @@
-"""Client for the ENTSO-E Transparency Platform API."""
+"""Client for the ENTSO-E Transparency Platform API.
+
+What one request can come back as, and what the client does about it. For every outcome other than
+success the client prints the window, the attempt number and the failure.
+
+Acceptable
+    A 200 carrying a GL_MarketDocument (load, generation) or a Publication_MarketDocument (prices).
+    A window with no published data arrives instead as an Acknowledgement_MarketDocument containing
+    "No matching data found", and asking again gives the same answer. A window a year in the
+    future, queried on 2026-09-16, came back under a 200; the same document also arrives under a
+    400, so the status code alone does not identify it.
+
+Retried, because a later attempt may succeed. The wait doubles between attempts, none after the
+last.
+    ConnectTimeout          raised: the server did not accept the connection in time
+    ReadTimeout             raised: the answer did not finish in time
+    Timeout                 raised: the base class of the two above
+    ConnectionError         raised: DNS failure, connection refused or reset, network unreachable
+    ChunkedEncodingError    raised: the connection broke while the body was arriving
+    ContentDecodingError    raised: the compressed body could not be unpacked
+    any 5xx status          returned: 500, 502, 503 and 504, typically during ENTSO-E maintenance
+
+Not retried, because the same request gives the same answer. The window is not fetched.
+    400               returned: a parameter is wrong, whether document type, process type, a zone
+                      parameter's name, a date, or a window longer than the API allows. The body
+                      names the reason
+    401               returned: the token is missing, wrong, or not yet activated. Check
+                      ENTSOE_TOKEN
+    403               returned: access refused for that data
+    404               returned: the base URL is wrong
+    429               returned: more than 400 requests per minute, per IP and per token. ENTSO-E
+                      blocks for about ten minutes: wait that long, then run again
+    SSLError          raised: certificate or TLS failure, often a wrong system clock or an
+                      intercepting proxy. It is a ConnectionError, so it is excluded by name
+                      rather than by family
+    ProxyError        raised: the proxy refused the connection
+    TooManyRedirects  raised: a redirect loop
+    InvalidURL, MissingSchema, InvalidSchema, InvalidProxyURL, InvalidHeader, URLRequired
+                      raised: the request was built wrongly, so the fault is in the client rather
+                      than at the far end
+
+Before any request is sent
+    A missing ENTSOE_TOKEN raises KeyError. A date that is not twelve digits in YYYYMMDDHHmm, a
+    range whose two dates coincide, or an end before its start is reported as a message, and
+    nothing is sent.
+
+Never printed
+    The token travels as the securityToken query parameter, so it is part of every request URL.
+    The client prints only an exception's class name, never str(err), repr(err), err.request.url
+    or response.url, each of which contains the token.
+"""
 
 import os
 import time
@@ -20,7 +70,7 @@ RETRIABLE_EXCEPTIONS = [
     "ChunkedEncodingError",
     "ContentDecodingError",
 ]
-ERROR_DOC = "See the API errors section of DATA.md."
+ERROR_DOC = "Every failure and what to do about it: the docstring of gridstress.client."
 
 
 def error_date(date_begin: str, date_end: str) -> str:
